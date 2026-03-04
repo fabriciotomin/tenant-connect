@@ -20,13 +20,12 @@ interface Bank {
   nome: string;
   agencia: string | null;
   conta: string | null;
-  tipo_conta: string;
   saldo_inicial: number;
   ativo: boolean;
   tenant_id: string;
 }
 
-const emptyForm = { codigo: "", nome: "", agencia: "", conta: "", tipo_conta: "corrente", saldo_inicial: "0", ativo: true };
+const emptyForm = { codigo: "", nome: "", agencia: "", conta: "", saldo_inicial: "0", ativo: true };
 
 export default function BanksPage() {
   const { tenant } = useTenant();
@@ -46,7 +45,7 @@ export default function BanksPage() {
         .select("*")
         .order("codigo");
       if (error) throw error;
-      return data as Bank[];
+      return (data || []) as unknown as Bank[];
     },
   });
 
@@ -56,17 +55,16 @@ export default function BanksPage() {
         nome: form.nome,
         agencia: form.agencia || null,
         conta: form.conta || null,
-        tipo_conta: form.tipo_conta,
         saldo_inicial: Number(form.saldo_inicial) || 0,
         ativo: form.ativo,
         tenant_id: tenant!.id,
       };
       if (editId) {
-        const { error } = await supabase.from("banks").update({ ...payload, updated_by: user?.id }).eq("id", editId);
+        const { error } = await supabase.from("banks").update(payload).eq("id", editId);
         if (error) throw error;
       } else {
         payload.codigo = form.codigo;
-        const { error } = await supabase.from("banks").insert({ ...payload, created_by: user?.id } as any);
+        const { error } = await supabase.from("banks").insert(payload as any);
         if (error) throw error;
       }
     },
@@ -80,11 +78,6 @@ export default function BanksPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      // Check dependencies via RPC
-      const { data: deps } = await supabase.rpc("check_entity_dependencies", { p_entity: "banks", p_id: id });
-      if (deps && deps !== "") {
-        throw new Error(`Cadastro possui movimentações vinculadas: ${deps}. Não pode ser excluído.`);
-      }
       const { error } = await supabase.from("banks").delete().eq("id", id);
       if (error) throw error;
     },
@@ -99,7 +92,7 @@ export default function BanksPage() {
   const openNew = () => { setEditId(null); setForm(emptyForm); setDialogOpen(true); };
   const openEdit = (b: Bank) => {
     setEditId(b.id);
-    setForm({ codigo: b.codigo, nome: b.nome, agencia: b.agencia || "", conta: b.conta || "", tipo_conta: b.tipo_conta, saldo_inicial: String(b.saldo_inicial), ativo: b.ativo });
+    setForm({ codigo: b.codigo, nome: b.nome, agencia: b.agencia || "", conta: b.conta || "", saldo_inicial: String(b.saldo_inicial), ativo: b.ativo });
     setDialogOpen(true);
   };
 
@@ -108,7 +101,7 @@ export default function BanksPage() {
     { key: "nome", label: "Nome", render: (r: Bank) => r.nome },
     { key: "agencia", label: "Agência", render: (r: Bank) => r.agencia || "—" },
     { key: "conta", label: "Conta", render: (r: Bank) => r.conta || "—" },
-    { key: "tipo_conta", label: "Tipo", render: (r: Bank) => r.tipo_conta === "corrente" ? "Corrente" : "Poupança" },
+    { key: "saldo_inicial", label: "Saldo Inicial", render: (r: Bank) => `R$ ${Number(r.saldo_inicial).toFixed(2)}` },
     { key: "ativo", label: "Status", render: (r: Bank) => <Badge className={r.ativo ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}>{r.ativo ? "Ativo" : "Inativo"}</Badge> },
     {
       key: "acoes", label: "Ações", render: (r: Bank) => (
@@ -145,16 +138,7 @@ export default function BanksPage() {
               <div><Label className="text-xs">Conta</Label><Input value={form.conta} onChange={e => setForm(p => ({ ...p, conta: e.target.value }))} /></div>
             </div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Tipo Conta</Label>
-                <Select value={form.tipo_conta} onValueChange={v => setForm(p => ({ ...p, tipo_conta: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="corrente">Corrente</SelectItem>
-                    <SelectItem value="poupanca">Poupança</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
+              <div></div>
               <div><Label className="text-xs">Saldo Inicial</Label><Input type="number" step="0.01" value={form.saldo_inicial} onChange={e => setForm(p => ({ ...p, saldo_inicial: e.target.value }))} /></div>
             </div>
           </div>
