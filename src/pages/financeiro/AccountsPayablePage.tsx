@@ -18,7 +18,7 @@ import { format, addDays } from "date-fns";
 import { Plus, Download } from "lucide-react";
 
 const statusColors: Record<string, string> = {
-  ABERTO: "bg-blue-100 text-blue-800",
+  pendente: "bg-blue-100 text-blue-800",
   PAGO: "bg-green-100 text-green-800",
   CANCELADO: "bg-red-100 text-red-800",
 };
@@ -29,7 +29,7 @@ interface AP {
   data_vencimento: string;
   valor: number;
   status: string;
-  supplier_id: string;
+  supplier_id: string | null;
   suppliers?: { razao_social: string } | null;
 }
 
@@ -44,17 +44,13 @@ export default function AccountsPayablePage() {
   const [batchBaixaDialog, setBatchBaixaDialog] = useState(false);
   const [filters, setFilters] = useState<FinancialFilterValues>(emptyFilters);
 
-  // New entry form
   const [form, setForm] = useState({
-    fornecedor_id: "", descricao: "", natureza_financeira_id: "", centro_custo_id: "",
-    forma_pagamento_id: "", valor_total: "", competencia: format(new Date(), "yyyy-MM"),
-    data_lancamento: format(new Date(), "yyyy-MM-dd"),
-    data_vencimento: "", observacao: "", parcelado: false, num_parcelas: "1", intervalo_dias: "30",
+    fornecedor_id: "", descricao: "", valor_total: "",
+    data_vencimento: "", parcelado: false, num_parcelas: "1", intervalo_dias: "30",
   });
 
-  // Baixa form
   const [baixaForm, setBaixaForm] = useState({
-    banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd"), juros: "0", multa: "0", desconto: "0", observacao: "",
+    banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd"),
   });
 
   const { data: accounts = [], isLoading } = useQuery({
@@ -88,34 +84,6 @@ export default function AccountsPayablePage() {
     },
   });
 
-  const { data: natures = [] } = useQuery({
-    queryKey: ["financial_natures", tenant?.id],
-    enabled: !!tenant?.id,
-    queryFn: async () => {
-      const { data } = await supabase.from("financial_natures").select("id, codigo, descricao").eq("tipo", "ANALITICO").order("codigo");
-      return data || [];
-    },
-  });
-
-  const { data: costCenters = [] } = useQuery({
-    queryKey: ["cost_centers", tenant?.id],
-    enabled: !!tenant?.id,
-    queryFn: async () => {
-      const { data } = await supabase.from("cost_centers").select("id, codigo, descricao").order("codigo");
-      return data || [];
-    },
-  });
-
-  const { data: paymentMethods = [] } = useQuery({
-    queryKey: ["formas_pagamento", tenant?.id],
-    enabled: !!tenant?.id,
-    queryFn: async () => {
-      const { data } = await supabase.from("formas_pagamento").select("id, nome").eq("ativo", true).order("nome");
-      return data || [];
-    },
-  });
-
-  // Parcelas preview
   const parcelas = useMemo(() => {
     if (!form.data_vencimento || !form.valor_total) return [];
     const n = form.parcelado ? Math.max(1, Number(form.num_parcelas) || 1) : 1;
@@ -189,12 +157,12 @@ export default function AccountsPayablePage() {
 
   const openBaixa = (r: AP) => {
     setBaixaTarget(r);
-    setBaixaForm({ banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd"), juros: "0", multa: "0", desconto: "0", observacao: "" });
+    setBaixaForm({ banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd") });
     setBaixaDialog(true);
   };
 
   const openBatchBaixa = () => {
-    setBaixaForm({ banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd"), juros: "0", multa: "0", desconto: "0", observacao: "" });
+    setBaixaForm({ banco_id: "", data_baixa: format(new Date(), "yyyy-MM-dd") });
     setBatchBaixaDialog(true);
   };
 
@@ -206,29 +174,23 @@ export default function AccountsPayablePage() {
     });
   };
 
-  const baixaValorFinal = baixaTarget
-    ? baixaTarget.valor + Number(baixaForm.juros || 0) + Number(baixaForm.multa || 0) - Number(baixaForm.desconto || 0)
-    : 0;
-
-  const openAccounts = accounts.filter(a => a.status === "ABERTO");
-  const filteredAccounts = useMemo(() => applyFinancialFilters(accounts, filters, "fornecedor_id"), [accounts, filters]);
+  const openAccounts = accounts.filter(a => a.status === "pendente" || a.status === "ABERTO");
+  const filteredAccounts = useMemo(() => applyFinancialFilters(accounts, filters, "supplier_id"), [accounts, filters]);
   const selectedCount = [...selectedIds].filter(id => openAccounts.some(a => a.id === id)).length;
 
   const columns = [
     {
-      key: "select", label: "", render: (r: AP) => r.status === "ABERTO" ? (
+      key: "select", label: "", render: (r: AP) => (r.status === "pendente" || r.status === "ABERTO") ? (
         <Checkbox checked={selectedIds.has(r.id)} onCheckedChange={() => toggleSelect(r.id)} />
       ) : null,
     },
     { key: "fornecedor", label: "Fornecedor", render: (r: AP) => r.suppliers?.razao_social || "—" },
-    { key: "descricao", label: "Descrição", render: (r: AP) => r.descricao || r.documento_origem || "—" },
+    { key: "descricao", label: "Descrição", render: (r: AP) => r.descricao || "—" },
     { key: "data_vencimento", label: "Vencimento", render: (r: AP) => format(new Date(r.data_vencimento), "dd/MM/yyyy") },
     { key: "valor", label: "Valor", render: (r: AP) => `R$ ${Number(r.valor).toFixed(2)}` },
-    { key: "valor_pago", label: "Valor Pago", render: (r: AP) => r.valor_pago ? `R$ ${Number(r.valor_pago).toFixed(2)}` : "—" },
     { key: "status", label: "Status", render: (r: AP) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
-    { key: "data_baixa", label: "Baixa", render: (r: AP) => r.data_baixa ? format(new Date(r.data_baixa), "dd/MM/yyyy") : "—" },
     {
-      key: "acoes", label: "Ações", render: (r: AP) => r.status === "ABERTO" ? (
+      key: "acoes", label: "Ações", render: (r: AP) => (r.status === "pendente" || r.status === "ABERTO") ? (
         <Button variant="outline" size="sm" className="h-7 text-xs" onClick={() => openBaixa(r)}>
           <Download className="h-3 w-3 mr-1" />Baixar
         </Button>
@@ -250,7 +212,7 @@ export default function AccountsPayablePage() {
             </Button>
           )}
           <Button size="sm" onClick={() => {
-            setForm({ fornecedor_id: "", descricao: "", natureza_financeira_id: "", centro_custo_id: "", forma_pagamento_id: "", valor_total: "", competencia: format(new Date(), "yyyy-MM"), data_lancamento: format(new Date(), "yyyy-MM-dd"), data_vencimento: "", observacao: "", parcelado: false, num_parcelas: "1", intervalo_dias: "30" });
+            setForm({ fornecedor_id: "", descricao: "", valor_total: "", data_vencimento: "", parcelado: false, num_parcelas: "1", intervalo_dias: "30" });
             setNewDialog(true);
           }}>
             <Plus className="h-4 w-4 mr-1" />Novo Lançamento
@@ -263,12 +225,10 @@ export default function AccountsPayablePage() {
         onFiltersChange={setFilters}
         entities={suppliers.map(s => ({ id: s.id, label: s.razao_social }))}
         entityLabel="Fornecedor"
-        natures={natures}
-        costCenters={costCenters}
       />
 
       <DataTable columns={columns} data={filteredAccounts} loading={isLoading} searchPlaceholder="Buscar por fornecedor ou descrição..."
-        filterFn={(r, s) => (r.suppliers?.razao_social || "").toLowerCase().includes(s) || (r.descricao || r.documento_origem || "").toLowerCase().includes(s)} />
+        filterFn={(r, s) => (r.suppliers?.razao_social || "").toLowerCase().includes(s) || (r.descricao || "").toLowerCase().includes(s)} />
 
       {/* New Entry Dialog */}
       <Dialog open={newDialog} onOpenChange={setNewDialog}>
@@ -284,34 +244,7 @@ export default function AccountsPayablePage() {
             </div>
             <div><Label className="text-xs">Descrição</Label><Input value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} /></div>
             <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Natureza Financeira</Label>
-                <Select value={form.natureza_financeira_id} onValueChange={v => setForm(p => ({ ...p, natureza_financeira_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id}>{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label className="text-xs">Centro de Custo</Label>
-                <Select value={form.centro_custo_id} onValueChange={v => setForm(p => ({ ...p, centro_custo_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id}>{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <Label className="text-xs">Forma de Pagamento</Label>
-                <Select value={form.forma_pagamento_id} onValueChange={v => setForm(p => ({ ...p, forma_pagamento_id: v }))}>
-                  <SelectTrigger><SelectValue placeholder="Selecione" /></SelectTrigger>
-                  <SelectContent>{paymentMethods.map(m => <SelectItem key={m.id} value={m.id}>{m.nome}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
               <div><Label className="text-xs">Valor Total *</Label><Input type="number" step="0.01" value={form.valor_total} onChange={e => setForm(p => ({ ...p, valor_total: e.target.value }))} /></div>
-            </div>
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label className="text-xs">Data Lançamento *</Label><Input type="date" value={form.data_lancamento} onChange={e => setForm(p => ({ ...p, data_lancamento: e.target.value }))} /></div>
-              <div><Label className="text-xs">Competência (MM/AAAA) *</Label><Input type="month" value={form.competencia} onChange={e => setForm(p => ({ ...p, competencia: e.target.value }))} /></div>
               <div><Label className="text-xs">Data 1º Vencimento *</Label><Input type="date" value={form.data_vencimento} onChange={e => setForm(p => ({ ...p, data_vencimento: e.target.value }))} /></div>
             </div>
             <div className="flex items-center gap-2">
@@ -335,7 +268,6 @@ export default function AccountsPayablePage() {
                 ))}
               </div>
             )}
-            <div><Label className="text-xs">Observação</Label><Textarea value={form.observacao} onChange={e => setForm(p => ({ ...p, observacao: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewDialog(false)}>Cancelar</Button>
@@ -354,31 +286,22 @@ export default function AccountsPayablePage() {
             <div className="grid gap-3">
               <div className="bg-muted p-3 rounded text-xs space-y-1">
                 <p><span className="font-medium">Fornecedor:</span> {baixaTarget.suppliers?.razao_social}</p>
-                <p><span className="font-medium">Valor Original:</span> R$ {Number(baixaTarget.valor).toFixed(2)}</p>
+                <p><span className="font-medium">Valor:</span> R$ {Number(baixaTarget.valor).toFixed(2)}</p>
                 <p><span className="font-medium">Vencimento:</span> {format(new Date(baixaTarget.data_vencimento), "dd/MM/yyyy")}</p>
               </div>
               <div>
-                <Label className="text-xs">Banco *</Label>
+                <Label className="text-xs">Banco</Label>
                 <Select value={baixaForm.banco_id} onValueChange={v => setBaixaForm(p => ({ ...p, banco_id: v }))}>
                   <SelectTrigger><SelectValue placeholder="Selecione o banco" /></SelectTrigger>
                   <SelectContent>{banks.map(b => <SelectItem key={b.id} value={b.id}>{b.codigo} - {b.nome}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div><Label className="text-xs">Data da Baixa</Label><Input type="date" value={baixaForm.data_baixa} onChange={e => setBaixaForm(p => ({ ...p, data_baixa: e.target.value }))} /></div>
-              <div className="grid grid-cols-3 gap-3">
-                <div><Label className="text-xs">Juros</Label><Input type="number" step="0.01" value={baixaForm.juros} onChange={e => setBaixaForm(p => ({ ...p, juros: e.target.value }))} /></div>
-                <div><Label className="text-xs">Multa</Label><Input type="number" step="0.01" value={baixaForm.multa} onChange={e => setBaixaForm(p => ({ ...p, multa: e.target.value }))} /></div>
-                <div><Label className="text-xs">Desconto</Label><Input type="number" step="0.01" value={baixaForm.desconto} onChange={e => setBaixaForm(p => ({ ...p, desconto: e.target.value }))} /></div>
-              </div>
-              <div className="bg-primary/5 p-3 rounded text-sm font-semibold text-center">
-                Valor Final: R$ {baixaValorFinal.toFixed(2)}
-              </div>
-              <div><Label className="text-xs">Observação</Label><Textarea value={baixaForm.observacao} onChange={e => setBaixaForm(p => ({ ...p, observacao: e.target.value }))} rows={2} /></div>
             </div>
           )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setBaixaDialog(false)}>Cancelar</Button>
-            <Button onClick={() => baixaTarget && baixaMut.mutate(baixaTarget.id)} disabled={!baixaForm.banco_id || baixaMut.isPending}>
+            <Button onClick={() => baixaTarget && baixaMut.mutate(baixaTarget.id)} disabled={baixaMut.isPending}>
               {baixaMut.isPending ? "Processando..." : "Confirmar Baixa"}
             </Button>
           </DialogFooter>
@@ -388,27 +311,22 @@ export default function AccountsPayablePage() {
       {/* Batch Baixa Dialog */}
       <Dialog open={batchBaixaDialog} onOpenChange={setBatchBaixaDialog}>
         <DialogContent>
-          <DialogHeader><DialogTitle>Baixa em Lote ({selectedCount} títulos)</DialogTitle></DialogHeader>
+          <DialogHeader><DialogTitle>Baixa em Lote</DialogTitle></DialogHeader>
+          <p className="text-xs text-muted-foreground">Serão baixados {selectedCount} títulos selecionados.</p>
           <div className="grid gap-3">
             <div>
-              <Label className="text-xs">Banco *</Label>
+              <Label className="text-xs">Banco</Label>
               <Select value={baixaForm.banco_id} onValueChange={v => setBaixaForm(p => ({ ...p, banco_id: v }))}>
                 <SelectTrigger><SelectValue placeholder="Selecione o banco" /></SelectTrigger>
                 <SelectContent>{banks.map(b => <SelectItem key={b.id} value={b.id}>{b.codigo} - {b.nome}</SelectItem>)}</SelectContent>
               </Select>
             </div>
             <div><Label className="text-xs">Data da Baixa</Label><Input type="date" value={baixaForm.data_baixa} onChange={e => setBaixaForm(p => ({ ...p, data_baixa: e.target.value }))} /></div>
-            <div className="grid grid-cols-3 gap-3">
-              <div><Label className="text-xs">Juros (cada)</Label><Input type="number" step="0.01" value={baixaForm.juros} onChange={e => setBaixaForm(p => ({ ...p, juros: e.target.value }))} /></div>
-              <div><Label className="text-xs">Multa (cada)</Label><Input type="number" step="0.01" value={baixaForm.multa} onChange={e => setBaixaForm(p => ({ ...p, multa: e.target.value }))} /></div>
-              <div><Label className="text-xs">Desconto (cada)</Label><Input type="number" step="0.01" value={baixaForm.desconto} onChange={e => setBaixaForm(p => ({ ...p, desconto: e.target.value }))} /></div>
-            </div>
-            <div><Label className="text-xs">Observação</Label><Textarea value={baixaForm.observacao} onChange={e => setBaixaForm(p => ({ ...p, observacao: e.target.value }))} rows={2} /></div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setBatchBaixaDialog(false)}>Cancelar</Button>
-            <Button onClick={() => batchBaixaMut.mutate()} disabled={!baixaForm.banco_id || batchBaixaMut.isPending}>
-              {batchBaixaMut.isPending ? "Processando..." : `Baixar ${selectedCount} títulos`}
+            <Button onClick={() => batchBaixaMut.mutate()} disabled={batchBaixaMut.isPending}>
+              {batchBaixaMut.isPending ? "Processando..." : "Confirmar Baixa em Lote"}
             </Button>
           </DialogFooter>
         </DialogContent>

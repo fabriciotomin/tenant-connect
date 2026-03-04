@@ -77,15 +77,25 @@ export default function BankStatementPage() {
     queryFn: async () => {
       let q = supabase
         .from("bank_movements")
-        .select("id, data, tipo, valor, referencia, natureza_financeira_id, centro_custo_id, financial_natures(codigo, descricao), cost_centers(codigo, descricao)")
+        .select("id, data_movimento, tipo, valor, descricao, banco_id")
         .eq("banco_id", filters.bankId)
-        .order("data", { ascending: true })
+        .order("data_movimento", { ascending: true })
         .order("created_at", { ascending: true });
-      if (filters.di) q = q.gte("data", filters.di);
-      if (filters.df) q = q.lte("data", filters.df);
+      if (filters.di) q = q.gte("data_movimento", filters.di);
+      if (filters.df) q = q.lte("data_movimento", filters.df);
       const { data, error } = await q;
       if (error) throw error;
-      return data as Movement[];
+      return (data || []).map((d: any) => ({
+        id: d.id,
+        data: d.data_movimento,
+        tipo: d.tipo,
+        valor: d.valor || 0,
+        referencia: d.descricao,
+        natureza_financeira_id: null,
+        centro_custo_id: null,
+        financial_natures: null,
+        cost_centers: null,
+      })) as Movement[];
     },
   });
 
@@ -113,14 +123,11 @@ export default function BankStatementPage() {
       const { error } = await supabase.from("bank_movements").insert({
         tenant_id: tenant.id,
         banco_id: filters.bankId,
-        tipo: newForm.tipo as any,
+        tipo: newForm.tipo,
         valor: parseFloat(newForm.valor),
-        data: newForm.data,
-        referencia: newForm.referencia || null,
-        natureza_financeira_id: newForm.natureza_financeira_id || null,
-        centro_custo_id: newForm.centro_custo_id || null,
-        created_by: user?.id,
-      });
+        data_movimento: newForm.data,
+        descricao: newForm.referencia || null,
+      } as any);
       if (error) throw error;
     },
     onSuccess: () => {
