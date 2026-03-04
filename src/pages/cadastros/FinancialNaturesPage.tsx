@@ -2,7 +2,6 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
-import { useAuth } from "@/hooks/useAuth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -10,8 +9,9 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { cn } from "@/lib/utils";
 
 interface FN {
   id: string;
@@ -23,9 +23,12 @@ interface FN {
   ativo: boolean;
 }
 
+function getLevel(codigo: string) {
+  return codigo.split(".").length;
+}
+
 export default function FinancialNaturesPage() {
   const { tenant } = useTenant();
-  const { user } = useAuth();
   const qc = useQueryClient();
   const [dialog, setDialog] = useState(false);
   const [editing, setEditing] = useState<FN | null>(null);
@@ -102,58 +105,83 @@ export default function FinancialNaturesPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const columns = [
-    { key: "codigo", label: "Código" },
-    { key: "descricao", label: "Descrição" },
-    { key: "tipo_natureza", label: "Tipo", render: (r: FN) => <Badge variant="outline" className="text-2xs">{r.tipo_natureza === "RECEITA" ? "Receita" : "Despesa"}</Badge> },
-    { key: "tipo", label: "Classificação", render: (r: FN) => <Badge variant={r.tipo === "SINTETICO" ? "secondary" : "default"} className="text-2xs">{r.tipo === "SINTETICO" ? "Sintética" : "Analítica"}</Badge> },
-    { key: "ativo", label: "Status", render: (r: FN) => <Badge className={`text-2xs ${r.ativo ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}>{r.ativo ? "Ativo" : "Inativo"}</Badge> },
-    {
-      key: "acoes", label: "", render: (r: FN) => (
-        <div className="flex gap-1">
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
-          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => setDeleting(r)}><Trash2 className="h-3 w-3" /></Button>
-        </div>
-      ),
-    },
-  ];
-
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Naturezas Financeiras</h1>
-          <p className="text-xs text-muted-foreground">Classificação financeira para DRE</p>
+          <p className="text-xs text-muted-foreground">Plano de contas hierárquico para classificação financeira e DRE</p>
         </div>
         <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nova Natureza</Button>
       </div>
 
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Carregando...</p>
+      ) : natures.length === 0 ? (
+        <div className="border rounded-lg p-4">
+          <p className="text-xs text-muted-foreground text-center">Nenhuma natureza cadastrada</p>
+        </div>
       ) : (
-        <div className="border rounded-lg">
-          {natures.length === 0 ? (
-            <p className="text-xs text-muted-foreground text-center py-4">Nenhuma natureza cadastrada</p>
-          ) : (
-            <table className="w-full text-xs">
-              <thead className="bg-muted/50">
-                <tr>
-                  {columns.map(c => <th key={c.key} className="text-left p-2">{c.label}</th>)}
-                </tr>
-              </thead>
-              <tbody>
-                {natures.map(n => (
-                  <tr key={n.id} className="border-t hover:bg-muted/30">
-                    {columns.map(c => (
-                      <td key={c.key} className="p-2">
-                        {c.render ? c.render(n) : (n as any)[c.key]}
-                      </td>
-                    ))}
+        <div className="border rounded-lg overflow-hidden">
+          <table className="w-full text-xs">
+            <thead className="bg-muted/50">
+              <tr>
+                <th className="text-left p-2 w-24">Código</th>
+                <th className="text-left p-2">Descrição</th>
+                <th className="text-left p-2 w-20">Tipo</th>
+                <th className="text-left p-2 w-24">Classificação</th>
+                <th className="text-left p-2 w-16">Status</th>
+                <th className="text-left p-2 w-16"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {natures.map(n => {
+                const level = getLevel(n.codigo);
+                const isSintetico = n.tipo === "SINTETICO";
+                return (
+                  <tr
+                    key={n.id}
+                    className={cn(
+                      "border-t hover:bg-muted/30 transition-colors",
+                      level === 1 && "bg-muted/40 font-semibold",
+                      level === 2 && "bg-muted/20",
+                    )}
+                  >
+                    <td className="p-2 font-mono text-muted-foreground">{n.codigo}</td>
+                    <td className="p-2">
+                      <div className="flex items-center" style={{ paddingLeft: `${(level - 1) * 16}px` }}>
+                        {level > 1 && <ChevronRight className="h-3 w-3 mr-1 text-muted-foreground/50 shrink-0" />}
+                        <span className={cn(isSintetico && "font-semibold uppercase", !n.ativo && "text-muted-foreground line-through")}>
+                          {n.descricao}
+                        </span>
+                      </div>
+                    </td>
+                    <td className="p-2">
+                      <Badge variant="outline" className={cn("text-2xs", n.tipo_natureza === "RECEITA" ? "border-green-500/50 text-green-700" : "border-destructive/50 text-destructive")}>
+                        {n.tipo_natureza === "RECEITA" ? "Receita" : "Despesa"}
+                      </Badge>
+                    </td>
+                    <td className="p-2">
+                      <Badge variant={isSintetico ? "secondary" : "default"} className="text-2xs">
+                        {isSintetico ? "Sintética" : "Analítica"}
+                      </Badge>
+                    </td>
+                    <td className="p-2">
+                      <Badge className={cn("text-2xs", n.ativo ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground")}>
+                        {n.ativo ? "Ativo" : "Inativo"}
+                      </Badge>
+                    </td>
+                    <td className="p-2">
+                      <div className="flex gap-1">
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(n)}><Pencil className="h-3 w-3" /></Button>
+                        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => setDeleting(n)}><Trash2 className="h-3 w-3" /></Button>
+                      </div>
+                    </td>
                   </tr>
-                ))}
-              </tbody>
-            </table>
-          )}
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       )}
 
@@ -166,7 +194,7 @@ export default function FinancialNaturesPage() {
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label className="text-xs">Código *</Label>
-                <Input className="h-8 text-xs" value={form.codigo} onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))} disabled={!!editing} />
+                <Input className="h-8 text-xs" placeholder="Ex: 3.1.1" value={form.codigo} onChange={e => setForm(p => ({ ...p, codigo: e.target.value }))} disabled={!!editing} />
               </div>
               <div>
                 <Label className="text-xs">Ordem</Label>
@@ -183,8 +211,8 @@ export default function FinancialNaturesPage() {
                 <Select value={form.tipo} onValueChange={v => setForm(p => ({ ...p, tipo: v }))}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SINTETICO" className="text-xs">Sintética</SelectItem>
-                    <SelectItem value="ANALITICO" className="text-xs">Analítica</SelectItem>
+                    <SelectItem value="SINTETICO" className="text-xs">Sintética (Grupo)</SelectItem>
+                    <SelectItem value="ANALITICO" className="text-xs">Analítica (Lançamento)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
