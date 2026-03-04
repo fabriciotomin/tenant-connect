@@ -34,7 +34,7 @@ export default function CashFlowPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("accounts_payable")
-        .select("id, valor, data_vencimento, status, documento_origem, suppliers:fornecedor_id(razao_social)")
+        .select("id, valor, data_vencimento, status, descricao, suppliers:supplier_id(razao_social)")
         .gte("data_vencimento", startDate)
         .lte("data_vencimento", endDate)
         .neq("status", "CANCELADO")
@@ -44,16 +44,16 @@ export default function CashFlowPage() {
     },
   });
 
-  const totalReceber = receivables.reduce((s, r) => s + Number(r.valor), 0);
-  const totalPagar = payables.reduce((s, r) => s + Number(r.valor), 0);
-  const totalReceberAberto = receivables.filter(r => r.status === "ABERTO").reduce((s, r) => s + Number(r.valor), 0);
-  const totalPagarAberto = payables.filter(r => r.status === "ABERTO").reduce((s, r) => s + Number(r.valor), 0);
+  const totalReceber = receivables.reduce((s, r: any) => s + Number(r.valor), 0);
+  const totalPagar = payables.reduce((s, r: any) => s + Number(r.valor), 0);
+  const totalReceberAberto = receivables.filter((r: any) => r.status === "ABERTO").reduce((s, r: any) => s + Number(r.valor), 0);
+  const totalPagarAberto = payables.filter((r: any) => r.status === "ABERTO" || r.status === "pendente").reduce((s, r: any) => s + Number(r.valor), 0);
   const saldoProjetado = totalReceberAberto - totalPagarAberto;
 
   const fmt = (v: number) => `R$ ${v.toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
 
   const statusBadge = (status: string) => {
-    const colors: Record<string, string> = { ABERTO: "bg-yellow-100 text-yellow-800", PAGO: "bg-green-100 text-green-800" };
+    const colors: Record<string, string> = { ABERTO: "bg-yellow-100 text-yellow-800", PAGO: "bg-green-100 text-green-800", pendente: "bg-yellow-100 text-yellow-800", pago: "bg-green-100 text-green-800" };
     return <Badge className={`text-2xs ${colors[status] || ""}`}>{status}</Badge>;
   };
 
@@ -125,7 +125,7 @@ export default function CashFlowPage() {
               <TableHeader>
                 <TableRow>
                   <TableHead className="text-xs">Vencimento</TableHead>
-                  <TableHead className="text-xs">Origem</TableHead>
+                  <TableHead className="text-xs">Descrição</TableHead>
                   <TableHead className="text-xs">Valor</TableHead>
                   <TableHead className="text-xs">Status</TableHead>
                 </TableRow>
@@ -134,7 +134,7 @@ export default function CashFlowPage() {
                 {payables.map((r: any) => (
                   <TableRow key={r.id}>
                     <TableCell className="text-xs">{format(new Date(r.data_vencimento), "dd/MM/yyyy")}</TableCell>
-                    <TableCell className="text-xs">{r.documento_origem || "—"}</TableCell>
+                    <TableCell className="text-xs">{r.descricao || "—"}</TableCell>
                     <TableCell className="text-xs">{fmt(Number(r.valor))}</TableCell>
                     <TableCell>{statusBadge(r.status)}</TableCell>
                   </TableRow>

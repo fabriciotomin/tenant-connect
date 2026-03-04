@@ -25,19 +25,11 @@ const statusColors: Record<string, string> = {
 
 interface AP {
   id: string;
-  documento_origem: string | null;
   descricao: string | null;
   data_vencimento: string;
-  data_baixa: string | null;
-  data_lancamento: string;
-  competencia: string;
   valor: number;
-  valor_pago: number | null;
   status: string;
-  juros: number;
-  multa: number;
-  desconto: number;
-  fornecedor_id: string;
+  supplier_id: string;
   suppliers?: { razao_social: string } | null;
 }
 
@@ -71,10 +63,10 @@ export default function AccountsPayablePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("accounts_payable")
-        .select("id, documento_origem, descricao, data_vencimento, data_baixa, data_lancamento, competencia, valor, valor_pago, status, juros, multa, desconto, fornecedor_id, suppliers(razao_social)")
+        .select("id, descricao, data_vencimento, valor, status, supplier_id, suppliers:supplier_id(razao_social)")
         .order("data_vencimento", { ascending: true });
       if (error) throw error;
-      return data as AP[];
+      return (data || []) as unknown as AP[];
     },
   });
 
@@ -109,7 +101,7 @@ export default function AccountsPayablePage() {
     queryKey: ["cost_centers", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("cost_centers").select("id, codigo, descricao").eq("tipo", "ANALITICO").order("codigo");
+      const { data } = await supabase.from("cost_centers").select("id, codigo, descricao").order("codigo");
       return data || [];
     },
   });
@@ -143,19 +135,10 @@ export default function AccountsPayablePage() {
       for (const p of parcelas) {
         const { error } = await supabase.from("accounts_payable").insert({
           tenant_id: tenant.id,
-          fornecedor_id: form.fornecedor_id,
+          supplier_id: form.fornecedor_id,
           descricao: form.descricao || null,
-          natureza_financeira_id: form.natureza_financeira_id || null,
-          centro_custo_id: form.centro_custo_id || null,
-          forma_pagamento_id: form.forma_pagamento_id || null,
           valor: p.valor,
-          competencia: form.competencia + "-01",
-          data_lancamento: form.data_lancamento,
-          data_emissao: format(new Date(), "yyyy-MM-dd"),
           data_vencimento: p.data,
-          documento_origem: form.parcelado ? `MANUAL-P${p.numero}` : "MANUAL",
-          observacao: form.observacao || null,
-          created_by: user?.id,
         } as any);
         if (error) throw error;
       }
@@ -170,16 +153,10 @@ export default function AccountsPayablePage() {
 
   const baixaMut = useMutation({
     mutationFn: async (tituloId: string) => {
-      const { error } = await supabase.rpc("baixar_titulo_pagar", {
-        p_titulo_id: tituloId,
-        p_banco_id: baixaForm.banco_id,
-        p_user_id: user?.id,
-        p_juros: Number(baixaForm.juros) || 0,
-        p_multa: Number(baixaForm.multa) || 0,
-        p_desconto: Number(baixaForm.desconto) || 0,
-        p_data_baixa: baixaForm.data_baixa,
-        p_observacao: baixaForm.observacao || null,
-      });
+      const { error } = await supabase
+        .from("accounts_payable")
+        .update({ status: "PAGO" })
+        .eq("id", tituloId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -194,16 +171,10 @@ export default function AccountsPayablePage() {
   const batchBaixaMut = useMutation({
     mutationFn: async () => {
       for (const id of selectedIds) {
-        const { error } = await supabase.rpc("baixar_titulo_pagar", {
-          p_titulo_id: id,
-          p_banco_id: baixaForm.banco_id,
-          p_user_id: user?.id,
-          p_juros: Number(baixaForm.juros) || 0,
-          p_multa: Number(baixaForm.multa) || 0,
-          p_desconto: Number(baixaForm.desconto) || 0,
-          p_data_baixa: baixaForm.data_baixa,
-          p_observacao: baixaForm.observacao || null,
-        });
+        const { error } = await supabase
+          .from("accounts_payable")
+          .update({ status: "PAGO" })
+          .eq("id", id);
         if (error) throw error;
       }
     },

@@ -26,17 +26,9 @@ const statusColors: Record<string, string> = {
 interface AR {
   id: string;
   documento_origem: string | null;
-  descricao: string | null;
   data_vencimento: string;
-  data_baixa: string | null;
-  data_lancamento: string;
-  competencia: string;
   valor: number;
-  valor_recebido: number | null;
   status: string;
-  juros: number;
-  multa: number;
-  desconto: number;
   cliente_id: string;
   customers?: { razao_social: string } | null;
 }
@@ -69,10 +61,10 @@ export default function AccountsReceivablePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("accounts_receivable")
-        .select("id, documento_origem, descricao, data_vencimento, data_baixa, data_lancamento, competencia, valor, valor_recebido, status, juros, multa, desconto, cliente_id, customers(razao_social)")
+        .select("id, documento_origem, data_vencimento, valor, status, cliente_id, customers(razao_social)")
         .order("data_vencimento", { ascending: true });
       if (error) throw error;
-      return data as AR[];
+      return (data || []) as unknown as AR[];
     },
   });
 
@@ -107,7 +99,7 @@ export default function AccountsReceivablePage() {
     queryKey: ["cost_centers", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("cost_centers").select("id, codigo, descricao").eq("tipo", "ANALITICO").order("codigo");
+      const { data } = await supabase.from("cost_centers").select("id, codigo, descricao").order("codigo");
       return data || [];
     },
   });
@@ -141,19 +133,10 @@ export default function AccountsReceivablePage() {
         const { error } = await supabase.from("accounts_receivable").insert({
           tenant_id: tenant.id,
           cliente_id: form.cliente_id,
-          descricao: form.descricao || null,
-          natureza_financeira_id: form.natureza_financeira_id || null,
-          centro_custo_id: form.centro_custo_id || null,
-          forma_pagamento_id: form.forma_pagamento_id || null,
           valor: p.valor,
-          competencia: form.competencia + "-01",
-          data_lancamento: form.data_lancamento,
-          data_emissao: format(new Date(), "yyyy-MM-dd"),
           data_vencimento: p.data,
           documento_origem: form.parcelado ? `MANUAL-P${p.numero}` : "MANUAL",
-          observacao: form.observacao || null,
-          created_by: user?.id,
-        } as any);
+        });
         if (error) throw error;
       }
     },
@@ -167,16 +150,10 @@ export default function AccountsReceivablePage() {
 
   const baixaMut = useMutation({
     mutationFn: async (tituloId: string) => {
-      const { error } = await supabase.rpc("baixar_titulo_receber", {
-        p_titulo_id: tituloId,
-        p_banco_id: baixaForm.banco_id,
-        p_user_id: user?.id,
-        p_juros: Number(baixaForm.juros) || 0,
-        p_multa: Number(baixaForm.multa) || 0,
-        p_desconto: Number(baixaForm.desconto) || 0,
-        p_data_baixa: baixaForm.data_baixa,
-        p_observacao: baixaForm.observacao || null,
-      });
+      const { error } = await supabase
+        .from("accounts_receivable")
+        .update({ status: "PAGO" as any })
+        .eq("id", tituloId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -191,16 +168,10 @@ export default function AccountsReceivablePage() {
   const batchBaixaMut = useMutation({
     mutationFn: async () => {
       for (const id of selectedIds) {
-        const { error } = await supabase.rpc("baixar_titulo_receber", {
-          p_titulo_id: id,
-          p_banco_id: baixaForm.banco_id,
-          p_user_id: user?.id,
-          p_juros: Number(baixaForm.juros) || 0,
-          p_multa: Number(baixaForm.multa) || 0,
-          p_desconto: Number(baixaForm.desconto) || 0,
-          p_data_baixa: baixaForm.data_baixa,
-          p_observacao: baixaForm.observacao || null,
-        });
+        const { error } = await supabase
+          .from("accounts_receivable")
+          .update({ status: "PAGO" as any })
+          .eq("id", id);
         if (error) throw error;
       }
     },

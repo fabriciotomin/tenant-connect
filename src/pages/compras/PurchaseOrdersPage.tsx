@@ -75,7 +75,7 @@ export default function PurchaseOrdersPage() {
         .select("id, numero_sequencial, status, data_entrega, valor_frete, created_at, fornecedor_id, condicao_pagamento_id, forma_pagamento_id, suppliers(razao_social)")
         .order("numero_sequencial", { ascending: false });
       if (error) throw error;
-      return data as PurchaseOrder[];
+      return (data || []) as unknown as PurchaseOrder[];
     },
   });
 
@@ -91,7 +91,7 @@ export default function PurchaseOrdersPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, natureza_financeira_id, centro_custo_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
@@ -125,26 +125,18 @@ export default function PurchaseOrdersPage() {
       const proportion = itemValue / totalValue;
       const itemFreight = totalFreight * proportion;
       const qty = parseFloat(i.quantidade || "1") || 1;
-      return {
-        ...i,
-        frete_total_item: itemFreight.toFixed(2),
-        frete_unitario: (itemFreight / qty).toFixed(2),
-      };
+      return { ...i, frete_total_item: itemFreight.toFixed(2), frete_unitario: (itemFreight / qty).toFixed(2) };
     });
   }
 
   function handleAddSelectedItems(pickedItems: PickedItem[]) {
     const newItems: POItem[] = pickedItems
       .filter((p) => !orderItems.some((oi) => oi.item_id === p.item_id))
-      .map((p) => {
-        const item = items.find(i => i.id === p.item_id);
-        return {
-          item_id: p.item_id, quantidade: String(p.quantidade), valor_unitario: String(p.valor_unitario),
-          impostos: "0", frete_unitario: "0", frete_total_item: "0",
-          natureza_financeira_id: (item as any)?.natureza_financeira_id || "",
-          centro_custo_id: (item as any)?.centro_custo_id || "",
-        };
-      });
+      .map((p) => ({
+        item_id: p.item_id, quantidade: String(p.quantidade), valor_unitario: String(p.valor_unitario),
+        impostos: "0", frete_unitario: "0", frete_total_item: "0",
+        natureza_financeira_id: "", centro_custo_id: "",
+      }));
     const updated = [...orderItems, ...newItems];
     const totalFreight = parseFloat(form.valor_frete) || 0;
     setOrderItems(form.frete_tipo === "GLOBAL" ? distributeFreight(updated, totalFreight) : updated);
@@ -174,14 +166,14 @@ export default function PurchaseOrdersPage() {
       frete_tipo: "GLOBAL",
     });
     setOrderItems((poItems || []).map(i => ({
-      item_id: i.item_id,
+      item_id: i.item_id || "",
       quantidade: String(i.quantidade),
       valor_unitario: String(i.valor_unitario),
       impostos: String(i.impostos),
       frete_unitario: String(i.frete_unitario),
       frete_total_item: String(i.frete_total_item),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "",
-      centro_custo_id: (i as any).centro_custo_id || "",
+      natureza_financeira_id: i.natureza_financeira_id || "",
+      centro_custo_id: i.centro_custo_id || "",
     })));
     setOpen(true);
   }
@@ -200,8 +192,15 @@ export default function PurchaseOrdersPage() {
       if (orderItems.length === 0) throw new Error("Adicione ao menos um item");
 
       if (editingId) {
-        const { error: ve } = await supabase.rpc("validate_purchase_order_editable", { p_order_id: editingId });
-        if (ve) throw ve;
+        // Validate editable: check status directly
+        const { data: existing } = await supabase
+          .from("purchase_orders")
+          .select("status")
+          .eq("id", editingId)
+          .single();
+        if (existing && existing.status !== "ABERTO") {
+          throw new Error("Este pedido não pode mais ser editado (status: " + existing.status + ")");
+        }
 
         const { error } = await supabase.from("purchase_orders").update({
           fornecedor_id: form.fornecedor_id,
@@ -209,7 +208,6 @@ export default function PurchaseOrdersPage() {
           valor_frete: parseFloat(form.valor_frete) || 0,
           condicao_pagamento_id: form.condicao_pagamento_id || null,
           forma_pagamento_id: form.forma_pagamento_id || null,
-          updated_by: user?.id,
         }).eq("id", editingId);
         if (error) throw error;
 
@@ -219,6 +217,7 @@ export default function PurchaseOrdersPage() {
         const { error: ie } = await supabase.from("purchase_order_items").insert(
           orderItems.map((i) => ({
             purchase_order_id: editingId,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
             valor_unitario: parseFloat(i.valor_unitario),
@@ -249,6 +248,7 @@ export default function PurchaseOrdersPage() {
         const { error: ie } = await supabase.from("purchase_order_items").insert(
           orderItems.map((i) => ({
             purchase_order_id: po.id,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
             valor_unitario: parseFloat(i.valor_unitario),
@@ -296,6 +296,7 @@ export default function PurchaseOrdersPage() {
         const { error: ie } = await supabase.from("purchase_order_items").insert(
           po.purchase_order_items.map((i: any) => ({
             purchase_order_id: npo.id,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: i.quantidade,
             valor_unitario: i.valor_unitario,
@@ -318,7 +319,10 @@ export default function PurchaseOrdersPage() {
 
   const cancelMutation = useMutation({
     mutationFn: async (orderId: string) => {
-      const { error } = await supabase.rpc("cancel_purchase_order", { p_id: orderId });
+      const { error } = await supabase
+        .from("purchase_orders")
+        .update({ status: "CANCELADO" })
+        .eq("id", orderId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -337,9 +341,14 @@ export default function PurchaseOrdersPage() {
       .eq("purchase_order_id", order.id);
     setViewDoc(order);
     setViewItems((poItems || []).map(i => ({
-      item_id: i.item_id, quantidade: String(i.quantidade), valor_unitario: String(i.valor_unitario),
-      impostos: String(i.impostos), frete_unitario: String(i.frete_unitario), frete_total_item: String(i.frete_total_item),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "", centro_custo_id: (i as any).centro_custo_id || "",
+      item_id: i.item_id || "",
+      quantidade: String(i.quantidade),
+      valor_unitario: String(i.valor_unitario),
+      impostos: String(i.impostos),
+      frete_unitario: String(i.frete_unitario),
+      frete_total_item: String(i.frete_total_item),
+      natureza_financeira_id: i.natureza_financeira_id || "",
+      centro_custo_id: i.centro_custo_id || "",
     })));
   }
 
@@ -357,18 +366,10 @@ export default function PurchaseOrdersPage() {
         const canCancel = r.status !== "CANCELADO";
         return (
           <div className="flex gap-0.5">
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver" onClick={(e) => { e.stopPropagation(); handleView(r); }}>
-              <Eye className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" disabled={!canEdit} onClick={(e) => { e.stopPropagation(); handleEdit(r); }}>
-              <Pencil className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7" title="Duplicar" disabled={!canDuplicate} onClick={(e) => { e.stopPropagation(); duplicateMutation.mutate(r.id); }}>
-              <Copy className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Cancelar" disabled={!canCancel} onClick={(e) => { e.stopPropagation(); setCancelDialogId(r.id); }}>
-              <XCircle className="h-3.5 w-3.5" />
-            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Ver" onClick={(e) => { e.stopPropagation(); handleView(r); }}><Eye className="h-3.5 w-3.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Editar" disabled={!canEdit} onClick={(e) => { e.stopPropagation(); handleEdit(r); }}><Pencil className="h-3.5 w-3.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Duplicar" disabled={!canDuplicate} onClick={(e) => { e.stopPropagation(); duplicateMutation.mutate(r.id); }}><Copy className="h-3.5 w-3.5" /></Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Cancelar" disabled={!canCancel} onClick={(e) => { e.stopPropagation(); setCancelDialogId(r.id); }}><XCircle className="h-3.5 w-3.5" /></Button>
           </div>
         );
       },
@@ -402,7 +403,7 @@ export default function PurchaseOrdersPage() {
       />
 
       <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); else setOpen(true); }}>
-         <DialogContent className="sm:max-w-[90vw] max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-[90vw] max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle className="text-sm">{editingId ? "Editar Pedido de Compra" : "Novo Pedido de Compra"}</DialogTitle>
           </DialogHeader>
@@ -430,22 +431,14 @@ export default function PurchaseOrdersPage() {
                 <Label className="text-xs">Cond. Pagamento</Label>
                 <Select value={form.condicao_pagamento_id} onValueChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
-                  <SelectContent>
-                    {paymentConditions.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">{p.descricao}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectContent>{paymentConditions.map((p) => <SelectItem key={p.id} value={p.id} className="text-xs">{p.descricao}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
                 <Label className="text-xs">Forma Pagamento</Label>
                 <Select value={form.forma_pagamento_id} onValueChange={(v) => setForm({ ...form, forma_pagamento_id: v })}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
-                  <SelectContent>
-                    {paymentMethods.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">{p.nome}</SelectItem>
-                    ))}
-                  </SelectContent>
+                  <SelectContent>{paymentMethods.map((p) => <SelectItem key={p.id} value={p.id} className="text-xs">{p.nome}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
               <div className="space-y-1.5">
@@ -465,10 +458,10 @@ export default function PurchaseOrdersPage() {
                 <div className="border rounded-md overflow-hidden overflow-x-auto">
                   <table className="w-full text-xs">
                     <thead className="bg-muted/50">
-                       <tr>
-                         <th className="text-left p-1.5">Item</th>
-                         <th className="text-center p-1.5 w-12">UN</th>
-                         <th className="text-left p-1.5 w-36">Nat. Financeira</th>
+                      <tr>
+                        <th className="text-left p-1.5">Item</th>
+                        <th className="text-center p-1.5 w-12">UN</th>
+                        <th className="text-left p-1.5 w-36">Nat. Financeira</th>
                         <th className="text-left p-1.5 w-36">Centro Custo</th>
                         <th className="text-right p-1.5 w-20">Qtd</th>
                         <th className="text-right p-1.5 w-20">Vlr Unit</th>
@@ -480,9 +473,9 @@ export default function PurchaseOrdersPage() {
                     <tbody>
                       {orderItems.map((oi, idx) => (
                         <tr key={idx} className="border-t">
-                           <td className="p-1.5 text-xs truncate max-w-[120px]">{getItemLabel(oi.item_id)}</td>
-                           <td className="p-1.5 text-center text-xs text-muted-foreground">{getItemUnit(oi.item_id)}</td>
-                           <td className="p-1">
+                          <td className="p-1.5 text-xs truncate max-w-[120px]">{getItemLabel(oi.item_id)}</td>
+                          <td className="p-1.5 text-center text-xs text-muted-foreground">{getItemUnit(oi.item_id)}</td>
+                          <td className="p-1">
                             <Select value={oi.natureza_financeira_id} onValueChange={(v) => { const u = [...orderItems]; u[idx].natureza_financeira_id = v; setOrderItems(u); }}>
                               <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
                               <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
@@ -548,12 +541,7 @@ export default function PurchaseOrdersPage() {
         </DialogContent>
       </Dialog>
 
-      <ItemPickerDialog
-        open={itemPickerOpen}
-        onOpenChange={setItemPickerOpen}
-        onConfirm={handleAddSelectedItems}
-        excludeIds={orderItems.map((oi) => oi.item_id)}
-      />
+      <ItemPickerDialog open={itemPickerOpen} onOpenChange={setItemPickerOpen} onConfirm={handleAddSelectedItems} excludeIds={orderItems.map((oi) => oi.item_id)} />
 
       {/* View Detail Dialog */}
       <Dialog open={!!viewDoc} onOpenChange={(v) => { if (!v) { setViewDoc(null); setViewItems([]); } }}>
@@ -601,9 +589,7 @@ export default function PurchaseOrdersPage() {
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Cancelar Pedido de Compra</AlertDialogTitle>
-            <AlertDialogDescription>
-              Tem certeza? Documentos de entrada pendentes vinculados também serão cancelados. Esta ação não pode ser desfeita.
-            </AlertDialogDescription>
+            <AlertDialogDescription>Tem certeza? Esta ação não pode ser desfeita.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Não</AlertDialogCancel>
