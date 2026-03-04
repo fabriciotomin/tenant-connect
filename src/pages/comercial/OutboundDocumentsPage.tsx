@@ -34,7 +34,6 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
-import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 
 const statusColors: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800",
@@ -68,7 +67,6 @@ export default function OutboundDocumentsPage() {
   const { tenant } = useTenant();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { natures, costCenters } = useFinancialClassification();
 
   const [openCreate, setOpenCreate] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
@@ -82,7 +80,7 @@ export default function OutboundDocumentsPage() {
   });
 
   const [newItems, setNewItems] = useState<
-    { item_id: string; quantidade: string; valor_unitario: string; impostos: string; natureza_financeira_id: string; centro_custo_id: string }[]
+    { item_id: string; quantidade: string; valor_unitario: string }[]
   >([]);
 
   // ---- Queries ----
@@ -108,7 +106,7 @@ export default function OutboundDocumentsPage() {
       return (data || []).map(d => ({
         ...d,
         sales_order_numero: d.pedido_venda_id ? soMap[d.pedido_venda_id] || null : null,
-      })) as any;
+      })) as OutboundDoc[];
     },
   });
 
@@ -120,30 +118,6 @@ export default function OutboundDocumentsPage() {
         .select("id, razao_social")
         .eq("ativo", true)
         .order("razao_social");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: representatives = [] } = useQuery({
-    queryKey: ["representantes_select"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("representantes")
-        .select("id, nome, percentual_comissao")
-        .order("nome");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: paymentConditions = [] } = useQuery({
-    queryKey: ["payment_conditions_select"],
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("payment_conditions")
-        .select("id, descricao, numero_parcelas, dias_entre_parcelas")
-        .order("descricao");
       if (error) throw error;
       return data;
     },
@@ -185,8 +159,7 @@ export default function OutboundDocumentsPage() {
       const valorTotal = newItems.reduce(
         (sum, i) =>
           sum +
-          parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0") +
-          parseFloat(i.impostos || "0"),
+          parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0"),
         0
       );
 
@@ -235,33 +208,14 @@ export default function OutboundDocumentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
       queryClient.invalidateQueries({ queryKey: ["items_select"] });
-      queryClient.invalidateQueries({ queryKey: ["accounts_receivable"] });
       setConfirmDialogId(null);
-      toast.success("Documento confirmado! Estoque movimentado, contas a receber geradas.");
+      toast.success("Documento confirmado! Estoque movimentado.");
     },
     onError: (e: any) => toast.error(`Erro ao confirmar: ${e.message}`),
   });
 
-  const cancelPendenteMutation = useMutation({
+  const cancelMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase
-        .from("outbound_documents")
-        .update({ status: "CANCELADO" as any })
-        .eq("id", docId)
-        .eq("status", "PENDENTE" as any);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
-      setCancelDialogId(null);
-      toast.success("Documento pendente cancelado");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const cancelConfirmadoMutation = useMutation({
-    mutationFn: async (docId: string) => {
-      // For confirmed docs, just update status - no estorno RPC available
       const { error } = await supabase
         .from("outbound_documents")
         .update({ status: "CANCELADO" as any })
@@ -270,12 +224,10 @@ export default function OutboundDocumentsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
-      queryClient.invalidateQueries({ queryKey: ["items_select"] });
-      queryClient.invalidateQueries({ queryKey: ["accounts_receivable"] });
       setCancelDialogId(null);
-      toast.success("Documento cancelado com estorno de estoque e financeiro");
+      toast.success("Documento cancelado");
     },
-    onError: (e: any) => toast.error(`Erro ao cancelar: ${e.message}`),
+    onError: (e: any) => toast.error(e.message),
   });
 
   const addItemToDoc = useMutation({
@@ -284,15 +236,16 @@ export default function OutboundDocumentsPage() {
       item,
     }: {
       docId: string;
-      item: { item_id: string; quantidade: number; valor_unitario: number; impostos: number };
+      item: { item_id: string; quantidade: number; valor_unitario: number };
     }) => {
       const { error } = await supabase.from("outbound_document_items").insert({
         outbound_document_id: docId,
-        ...item,
+        item_id: item.item_id,
+        quantidade: item.quantidade,
+        valor_unitario: item.valor_unitario,
       });
       if (error) throw error;
 
-      // Recalculate total
       const { data: allItemsData } = await supabase
         .from("outbound_document_items")
         .select("quantidade, valor_unitario")
@@ -356,7 +309,7 @@ export default function OutboundDocumentsPage() {
   }
 
   function addNewItemRow() {
-    setNewItems([...newItems, { item_id: "", quantidade: "1", valor_unitario: "0", impostos: "0", natureza_financeira_id: "", centro_custo_id: "" }]);
+    setNewItems([...newItems, { item_id: "", quantidade: "1", valor_unitario: "0" }]);
   }
 
   function updateNewItem(index: number, field: string, value: string) {
@@ -382,7 +335,6 @@ export default function OutboundDocumentsPage() {
     item_id: "",
     quantidade: "1",
     valor_unitario: "0",
-    impostos: "0",
   });
 
   // ---- Table columns ----
@@ -392,7 +344,7 @@ export default function OutboundDocumentsPage() {
       label: "NF",
       render: (r: OutboundDoc) =>
         r.numero_nf
-          ? `${r.document_series?.serie || "1"} / ${String(r.numero_nf).padStart(6, "0")}`
+          ? `${r.serie || "1"} / ${String(r.numero_nf).padStart(6, "0")}`
           : r.status === "PENDENTE" ? "Pendente" : "—",
     },
     {
@@ -404,11 +356,6 @@ export default function OutboundDocumentsPage() {
       key: "cliente",
       label: "Cliente",
       render: (r: OutboundDoc) => r.customers?.razao_social || "—",
-    },
-    {
-      key: "representante",
-      label: "Representante",
-      render: (r: OutboundDoc) => r.representantes?.nome || "—",
     },
     {
       key: "status",
@@ -457,7 +404,7 @@ export default function OutboundDocumentsPage() {
       <div>
         <h1 className="text-lg font-semibold">Documentos de Saída (NF-e)</h1>
         <p className="text-xs text-muted-foreground">
-          Ao confirmar: movimenta estoque, gera contas a receber e comissões automaticamente
+          Ao confirmar: movimenta estoque (SAÍDA) automaticamente
         </p>
       </div>
 
@@ -488,7 +435,6 @@ export default function OutboundDocumentsPage() {
             }}
             className="space-y-4 overflow-y-auto flex-1"
           >
-            {/* Header fields */}
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1.5">
                 <Label className="text-xs">Cliente *</Label>
@@ -500,42 +446,6 @@ export default function OutboundDocumentsPage() {
                     {customers.map((c) => (
                       <SelectItem key={c.id} value={c.id} className="text-xs">
                         {c.razao_social}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Representante</Label>
-                <Select
-                  value={form.representante_id}
-                  onValueChange={(v) => setForm({ ...form, representante_id: v })}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="Nenhum" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {representatives.map((r) => (
-                      <SelectItem key={r.id} value={r.id} className="text-xs">
-                        {r.nome} ({r.percentual_comissao}%)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Cond. Pagamento</Label>
-                <Select
-                  value={form.condicao_pagamento_id}
-                  onValueChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}
-                >
-                  <SelectTrigger className="h-8 text-xs">
-                    <SelectValue placeholder="À vista (30 dias)" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {paymentConditions.map((p) => (
-                      <SelectItem key={p.id} value={p.id} className="text-xs">
-                        {p.descricao} ({p.numero_parcelas}x)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -567,15 +477,10 @@ export default function OutboundDocumentsPage() {
               )}
               {newItems.map((item, idx) => (
                 <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
-                  <div className="grid grid-cols-[1fr_50px_80px_100px_80px_32px] gap-2 items-end">
+                  <div className="grid grid-cols-[1fr_50px_80px_100px_32px] gap-2 items-end">
                     <div>
                       <Label className="text-2xs">Item</Label>
-                      <Select value={item.item_id} onValueChange={(v) => {
-                        const found = items.find(i => i.id === v);
-                        const updated = [...newItems];
-                        updated[idx] = { ...updated[idx], item_id: v, natureza_financeira_id: (found as any)?.natureza_venda_id || "", centro_custo_id: (found as any)?.centro_custo_venda_id || "" };
-                        setNewItems(updated);
-                      }}>
+                      <Select value={item.item_id} onValueChange={(v) => updateNewItem(idx, "item_id", v)}>
                         <SelectTrigger className="h-7 text-2xs">
                           <SelectValue placeholder="Selecione..." />
                         </SelectTrigger>
@@ -602,23 +507,9 @@ export default function OutboundDocumentsPage() {
                       <Label className="text-2xs">Vlr Unit</Label>
                       <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
                     </div>
-                    <div>
-                      <Label className="text-2xs">Impostos</Label>
-                      <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.impostos} onChange={(e) => updateNewItem(idx, "impostos", e.target.value)} />
-                    </div>
                     <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeNewItem(idx)}>
                       <Trash2 className="h-3 w-3" />
                     </Button>
-                  </div>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Select value={item.natureza_financeira_id} onValueChange={(v) => updateNewItem(idx, "natureza_financeira_id", v)}>
-                      <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Financeira" /></SelectTrigger>
-                      <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                    </Select>
-                    <Select value={item.centro_custo_id} onValueChange={(v) => updateNewItem(idx, "centro_custo_id", v)}>
-                      <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
-                      <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                    </Select>
                   </div>
                 </div>
               ))}
@@ -651,7 +542,7 @@ export default function OutboundDocumentsPage() {
           <DialogHeader>
             <DialogTitle className="text-sm flex items-center gap-2">
               {selectedDoc?.numero_nf
-                ? `NF ${selectedDoc.document_series?.serie || "1"} / ${String(selectedDoc.numero_nf).padStart(6, "0")}`
+                ? `NF ${selectedDoc.serie || "1"} / ${String(selectedDoc.numero_nf).padStart(6, "0")}`
                 : `Documento ${selectedDoc?.id.slice(0, 8)}`}
               {selectedDoc && (
                 <Badge className={`text-2xs ${statusColors[selectedDoc.status] || ""}`}>
@@ -665,11 +556,7 @@ export default function OutboundDocumentsPage() {
               <div className="grid grid-cols-2 gap-3 text-xs">
                 <div>
                   <span className="text-muted-foreground">Cliente:</span>{" "}
-                  {selectedDoc.customers?.razao_social}
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Representante:</span>{" "}
-                  {selectedDoc.representantes?.nome || "—"}
+                  {selectedDoc.customers?.razao_social || "—"}
                 </div>
                 <div>
                   <span className="text-muted-foreground">Emissão:</span>{" "}
@@ -692,7 +579,6 @@ export default function OutboundDocumentsPage() {
                          <th className="text-center p-1.5 w-12">UN</th>
                          <th className="text-right p-1.5">Qtd</th>
                         <th className="text-right p-1.5">Vlr Unit</th>
-                        <th className="text-right p-1.5">Impostos</th>
                         <th className="text-right p-1.5">Subtotal</th>
                         {selectedDoc.status === "PENDENTE" && (
                           <th className="p-1.5 w-8"></th>
@@ -713,10 +599,7 @@ export default function OutboundDocumentsPage() {
                             R$ {Number(di.valor_unitario).toFixed(2)}
                           </td>
                           <td className="text-right p-1.5">
-                            R$ {Number(di.impostos).toFixed(2)}
-                          </td>
-                          <td className="text-right p-1.5">
-                            R$ {(di.quantidade * di.valor_unitario + di.impostos).toFixed(2)}
+                            R$ {(di.quantidade * di.valor_unitario).toFixed(2)}
                           </td>
                           {selectedDoc.status === "PENDENTE" && (
                             <td className="p-1.5">
@@ -739,7 +622,7 @@ export default function OutboundDocumentsPage() {
                       ))}
                       {docItems.length === 0 && (
                         <tr>
-                          <td colSpan={6} className="text-center p-4 text-muted-foreground">
+                          <td colSpan={5} className="text-center p-4 text-muted-foreground">
                             Nenhum item
                           </td>
                         </tr>
@@ -753,7 +636,7 @@ export default function OutboundDocumentsPage() {
               {selectedDoc.status === "PENDENTE" && (
                 <div className="space-y-2 border-t pt-3">
                   <Label className="text-xs">Adicionar Item</Label>
-                  <div className="grid grid-cols-[1fr_80px_100px_80px_60px] gap-2 items-end">
+                  <div className="grid grid-cols-[1fr_80px_100px_60px] gap-2 items-end">
                     <Select
                       value={detailNewItem.item_id}
                       onValueChange={(v) =>
@@ -789,15 +672,6 @@ export default function OutboundDocumentsPage() {
                         setDetailNewItem({ ...detailNewItem, valor_unitario: e.target.value })
                       }
                     />
-                    <Input
-                      className="h-7 text-2xs"
-                      type="number"
-                      placeholder="Impostos"
-                      value={detailNewItem.impostos}
-                      onChange={(e) =>
-                        setDetailNewItem({ ...detailNewItem, impostos: e.target.value })
-                      }
-                    />
                     <Button
                       type="button"
                       size="sm"
@@ -810,10 +684,9 @@ export default function OutboundDocumentsPage() {
                             item_id: detailNewItem.item_id,
                             quantidade: parseFloat(detailNewItem.quantidade),
                             valor_unitario: parseFloat(detailNewItem.valor_unitario),
-                            impostos: parseFloat(detailNewItem.impostos || "0"),
                           },
                         });
-                        setDetailNewItem({ item_id: "", quantidade: "1", valor_unitario: "0", impostos: "0" });
+                        setDetailNewItem({ item_id: "", quantidade: "1", valor_unitario: "0" });
                       }}
                     >
                       <Plus className="h-3 w-3" />
@@ -843,7 +716,7 @@ export default function OutboundDocumentsPage() {
                     onClick={() => setCancelDialogId(selectedDoc.id)}
                   >
                     <XCircle className="h-3.5 w-3.5 mr-1" />
-                    {selectedDoc.status === "PROCESSADO" ? "Cancelar (Admin)" : "Cancelar Documento"}
+                    Cancelar Documento
                   </Button>
                 </div>
               )}
@@ -858,23 +731,15 @@ export default function OutboundDocumentsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm">Confirmar Documento de Saída?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              Esta ação é irreversível e irá:
-              <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                <li>Movimentar estoque (SAÍDA) para todos os itens</li>
-                <li>Gerar contas a receber conforme condição de pagamento</li>
-                <li>Registrar comissão do representante (se vinculado)</li>
-                <li>Registrar log de auditoria</li>
-              </ul>
+              Esta ação irá movimentar estoque (SAÍDA) para todos os itens.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="text-xs">Voltar</AlertDialogCancel>
+            <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction
-              className="text-xs"
-              disabled={confirmMutation.isPending}
               onClick={() => confirmDialogId && confirmMutation.mutate(confirmDialogId)}
             >
-              {confirmMutation.isPending ? "Processando..." : "Confirmar"}
+              Confirmar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
@@ -886,41 +751,16 @@ export default function OutboundDocumentsPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm">Cancelar Documento?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              {(() => {
-                const doc = docs.find(d => d.id === cancelDialogId);
-                if (doc?.status === "PROCESSADO") {
-                  return (
-                    <>
-                      <strong>Cancelamento transacional (somente Admin Global):</strong>
-                      <ul className="list-disc ml-4 mt-1 space-y-0.5">
-                        <li>Estorno de estoque (entrada reversa)</li>
-                        <li>Cancelamento de contas a receber em aberto</li>
-                        <li>Exclusão de comissões</li>
-                        <li>Se houver títulos já baixados, o cancelamento será bloqueado</li>
-                      </ul>
-                    </>
-                  );
-                }
-                return "O documento pendente será marcado como CANCELADO.";
-              })()}
+              Tem certeza que deseja cancelar este documento?
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="text-xs">Voltar</AlertDialogCancel>
+            <AlertDialogCancel>Não</AlertDialogCancel>
             <AlertDialogAction
-              className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              disabled={cancelPendenteMutation.isPending || cancelConfirmadoMutation.isPending}
-              onClick={() => {
-                if (!cancelDialogId) return;
-                const doc = docs.find(d => d.id === cancelDialogId);
-                if (doc?.status === "PROCESSADO") {
-                  cancelConfirmadoMutation.mutate(cancelDialogId);
-                } else {
-                  cancelPendenteMutation.mutate(cancelDialogId);
-                }
-              }}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => cancelDialogId && cancelMutation.mutate(cancelDialogId)}
             >
-              {(cancelPendenteMutation.isPending || cancelConfirmadoMutation.isPending) ? "Cancelando..." : "Cancelar Documento"}
+              Sim, cancelar
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
