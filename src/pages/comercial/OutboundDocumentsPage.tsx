@@ -1,0 +1,956 @@
+import { useState } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { supabase } from "@/integrations/supabase/client";
+import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/hooks/useAuth";
+import { DataTable } from "@/components/DataTable";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
+import { toast } from "sonner";
+import { format } from "date-fns";
+import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
+import { useFinancialClassification } from "@/hooks/useFinancialClassification";
+
+const statusColors: Record<string, string> = {
+  PENDENTE: "bg-yellow-100 text-yellow-800",
+  PROCESSADO: "bg-green-100 text-green-800",
+  CANCELADO: "bg-red-100 text-red-800",
+};
+
+interface OutboundDoc {
+  id: string;
+  numero: string | null;
+  serie: string | null;
+  numero_nf: number | null;
+  pedido_venda_id: string | null;
+  valor_total: number;
+  status: string;
+  data_emissao: string;
+  created_at: string;
+  cliente_id: string;
+  representante_id: string | null;
+  condicao_pagamento_id: string | null;
+  customers?: { razao_social: string } | null;
+  representantes?: { nome: string } | null;
+  document_series?: { serie: string; nome: string } | null;
+  sales_order_numero?: number | null;
+}
+
+interface DocItem {
+  id?: string;
+  item_id: string;
+  quantidade: number;
+  valor_unitario: number;
+  impostos: number;
+  items?: { codigo: string; descricao: string; saldo_estoque: number } | null;
+}
+
+export default function OutboundDocumentsPage() {
+  const { tenant } = useTenant();
+  const { user } = useAuth();
+  const queryClient = useQueryClient();
+  const { natures, costCenters } = useFinancialClassification();
+
+  const [openCreate, setOpenCreate] = useState(false);
+  const [openDetail, setOpenDetail] = useState(false);
+  const [confirmDialogId, setConfirmDialogId] = useState<string | null>(null);
+  const [cancelDialogId, setCancelDialogId] = useState<string | null>(null);
+  const [selectedDoc, setSelectedDoc] = useState<OutboundDoc | null>(null);
+
+  const [form, setForm] = useState({
+    cliente_id: "",
+    representante_id: "",
+    condicao_pagamento_id: "",
+    numero: "",
+    serie: "",
+    data_emissao: new Date().toISOString().split("T")[0],
+  });
+
+  const [newItems, setNewItems] = useState<
+    { item_id: string; quantidade: string; valor_unitario: string; impostos: string; natureza_financeira_id: string; centro_custo_id: string }[]
+  >([]);
+
+  // ---- Queries ----
+  const { data: docs = [], isLoading } = useQuery({
+    queryKey: ["outbound_documents"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outbound_documents")
+        .select("*, customers(razao_social), representantes(nome), document_series(serie, nome)")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      
+      // Fetch sales order numbers for linked documents
+      const soIds = (data || []).map(d => d.pedido_venda_id).filter(Boolean) as string[];
+      let soMap: Record<string, number> = {};
+      if (soIds.length > 0) {
+        const { data: soData } = await supabase
+          .from("sales_orders")
+          .select("id, numero_sequencial")
+          .in("id", soIds);
+        soMap = (soData || []).reduce((acc, s) => ({ ...acc, [s.id]: s.numero_sequencial }), {} as Record<string, number>);
+      }
+      
+      return (data || []).map(d => ({
+        ...d,
+        sales_order_numero: d.pedido_venda_id ? soMap[d.pedido_venda_id] || null : null,
+      })) as (OutboundDoc & { sales_order_numero: number | null })[];
+      if (error) throw error;
+      return data as OutboundDoc[];
+    },
+  });
+
+  const { data: customers = [] } = useQuery({
+    queryKey: ["customers_select_active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("customers")
+        .select("id, razao_social")
+        .eq("ativo", true)
+        .order("razao_social");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: representatives = [] } = useQuery({
+    queryKey: ["representantes_select"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("representantes")
+        .select("id, nome, percentual_comissao")
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: paymentConditions = [] } = useQuery({
+    queryKey: ["payment_conditions_select"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("payment_conditions")
+        .select("id, descricao, numero_parcelas, dias_entre_parcelas")
+        .order("descricao");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: items = [] } = useQuery({
+    queryKey: ["items_select_active"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("items")
+        .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id")
+        .eq("ativo", true)
+        .order("codigo");
+      if (error) throw error;
+      return data;
+    },
+  });
+
+  const { data: docItems = [] } = useQuery({
+    queryKey: ["outbound_doc_items", selectedDoc?.id],
+    enabled: !!selectedDoc,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("outbound_document_items")
+        .select("*, items(codigo, descricao, saldo_estoque)")
+        .eq("outbound_document_id", selectedDoc!.id);
+      if (error) throw error;
+      return data as DocItem[];
+    },
+  });
+
+  // ---- Mutations ----
+  const createDocMutation = useMutation({
+    mutationFn: async () => {
+      if (!tenant?.id) throw new Error("Sem tenant");
+      if (!form.cliente_id) throw new Error("Cliente obrigatório");
+      if (newItems.length === 0) throw new Error("Adicione ao menos um item");
+
+      const valorTotal = newItems.reduce(
+        (sum, i) =>
+          sum +
+          parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0") +
+          parseFloat(i.impostos || "0"),
+        0
+      );
+
+      const { data: doc, error: docError } = await supabase
+        .from("outbound_documents")
+        .insert({
+          tenant_id: tenant.id,
+          cliente_id: form.cliente_id,
+          representante_id: form.representante_id || null,
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          numero: form.numero || null,
+          serie: form.serie || null,
+          data_emissao: form.data_emissao,
+          valor_total: valorTotal,
+          created_by: user?.id,
+        })
+        .select("id")
+        .single();
+      if (docError) throw docError;
+
+      const itemsToInsert = newItems.map((i) => ({
+        outbound_document_id: doc.id,
+        item_id: i.item_id,
+        quantidade: parseFloat(i.quantidade),
+        valor_unitario: parseFloat(i.valor_unitario),
+        impostos: parseFloat(i.impostos || "0"),
+        natureza_financeira_id: i.natureza_financeira_id || null,
+        centro_custo_id: i.centro_custo_id || null,
+      }));
+
+      const { error: itemsError } = await supabase
+        .from("outbound_document_items")
+        .insert(itemsToInsert);
+      if (itemsError) throw itemsError;
+
+      return doc.id;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      setOpenCreate(false);
+      resetForm();
+      toast.success("Documento de saída criado com sucesso");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const confirmMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      const { error } = await supabase.rpc("confirmar_documento_saida", {
+        p_document_id: docId,
+        p_user_id: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      queryClient.invalidateQueries({ queryKey: ["items_select"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts_receivable"] });
+      setConfirmDialogId(null);
+      toast.success("Documento confirmado! Estoque movimentado, contas a receber geradas.");
+    },
+    onError: (e: any) => toast.error(`Erro ao confirmar: ${e.message}`),
+  });
+
+  const cancelPendenteMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      const { error } = await supabase
+        .from("outbound_documents")
+        .update({ status: "CANCELADO" as any, updated_by: user?.id })
+        .eq("id", docId)
+        .eq("status", "PENDENTE" as any);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      setCancelDialogId(null);
+      toast.success("Documento pendente cancelado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const cancelConfirmadoMutation = useMutation({
+    mutationFn: async (docId: string) => {
+      const { error } = await supabase.rpc("cancelar_documento_saida", {
+        p_document_id: docId,
+        p_user_id: user?.id,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      queryClient.invalidateQueries({ queryKey: ["items_select"] });
+      queryClient.invalidateQueries({ queryKey: ["accounts_receivable"] });
+      setCancelDialogId(null);
+      toast.success("Documento cancelado com estorno de estoque e financeiro");
+    },
+    onError: (e: any) => toast.error(`Erro ao cancelar: ${e.message}`),
+  });
+
+  const addItemToDoc = useMutation({
+    mutationFn: async ({
+      docId,
+      item,
+    }: {
+      docId: string;
+      item: { item_id: string; quantidade: number; valor_unitario: number; impostos: number };
+    }) => {
+      const { error } = await supabase.from("outbound_document_items").insert({
+        outbound_document_id: docId,
+        ...item,
+      });
+      if (error) throw error;
+
+      // Recalculate total
+      const { data: allItems } = await supabase
+        .from("outbound_document_items")
+        .select("quantidade, valor_unitario, impostos")
+        .eq("outbound_document_id", docId);
+
+      const newTotal = (allItems || []).reduce(
+        (sum, i) => sum + i.quantidade * i.valor_unitario + i.impostos,
+        0
+      );
+
+      await supabase
+        .from("outbound_documents")
+        .update({ valor_total: newTotal })
+        .eq("id", docId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_doc_items"] });
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      toast.success("Item adicionado");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const removeItemFromDoc = useMutation({
+    mutationFn: async ({ itemId, docId }: { itemId: string; docId: string }) => {
+      const { error } = await supabase
+        .from("outbound_document_items")
+        .delete()
+        .eq("id", itemId);
+      if (error) throw error;
+
+      const { data: allItems } = await supabase
+        .from("outbound_document_items")
+        .select("quantidade, valor_unitario, impostos")
+        .eq("outbound_document_id", docId);
+
+      const newTotal = (allItems || []).reduce(
+        (sum, i) => sum + i.quantidade * i.valor_unitario + i.impostos,
+        0
+      );
+
+      await supabase
+        .from("outbound_documents")
+        .update({ valor_total: newTotal })
+        .eq("id", docId);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["outbound_doc_items"] });
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      toast.success("Item removido");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  function resetForm() {
+    setForm({
+      cliente_id: "",
+      representante_id: "",
+      condicao_pagamento_id: "",
+      numero: "",
+      serie: "",
+      data_emissao: new Date().toISOString().split("T")[0],
+    });
+    setNewItems([]);
+  }
+
+  function addNewItemRow() {
+    setNewItems([...newItems, { item_id: "", quantidade: "1", valor_unitario: "0", impostos: "0", natureza_financeira_id: "", centro_custo_id: "" }]);
+  }
+
+  function updateNewItem(index: number, field: string, value: string) {
+    const updated = [...newItems];
+    (updated[index] as any)[field] = value;
+    setNewItems(updated);
+  }
+
+  function removeNewItem(index: number) {
+    setNewItems(newItems.filter((_, i) => i !== index));
+  }
+
+  const calcTotal = () =>
+    newItems.reduce(
+      (sum, i) =>
+        sum +
+        parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0") +
+        parseFloat(i.impostos || "0"),
+      0
+    );
+
+  // ---- Detail add item state ----
+  const [detailNewItem, setDetailNewItem] = useState({
+    item_id: "",
+    quantidade: "1",
+    valor_unitario: "0",
+    impostos: "0",
+  });
+
+  // ---- Table columns ----
+  const columns = [
+    {
+      key: "numero_nf",
+      label: "NF",
+      render: (r: OutboundDoc) =>
+        r.numero_nf
+          ? `${r.document_series?.serie || "1"} / ${String(r.numero_nf).padStart(6, "0")}`
+          : r.status === "PENDENTE" ? "Pendente" : "—",
+    },
+    {
+      key: "pedido_venda",
+      label: "Pedido",
+      render: (r: OutboundDoc) => r.sales_order_numero ? `PV-${r.sales_order_numero}` : "—",
+    },
+    {
+      key: "cliente",
+      label: "Cliente",
+      render: (r: OutboundDoc) => r.customers?.razao_social || "—",
+    },
+    {
+      key: "representante",
+      label: "Representante",
+      render: (r: OutboundDoc) => r.representantes?.nome || "—",
+    },
+    {
+      key: "status",
+      label: "Status",
+      render: (r: OutboundDoc) => (
+        <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>
+          {r.status}
+        </Badge>
+      ),
+    },
+    {
+      key: "valor_total",
+      label: "Valor Total",
+      render: (r: OutboundDoc) => `R$ ${Number(r.valor_total).toFixed(2)}`,
+    },
+    {
+      key: "data_emissao",
+      label: "Emissão",
+      render: (r: OutboundDoc) => format(new Date(r.data_emissao), "dd/MM/yyyy"),
+    },
+    {
+      key: "acoes",
+      label: "Ações",
+      render: (r: OutboundDoc) => {
+        const isPending = r.status === "PENDENTE";
+        const canCancel = r.status !== "CANCELADO";
+        return (
+          <div className="flex gap-0.5">
+            <Button variant="ghost" size="icon" className="h-7 w-7" title="Detalhes" onClick={(e) => { e.stopPropagation(); setSelectedDoc(r); setOpenDetail(true); }}>
+              <Eye className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" title="Confirmar" disabled={!isPending} onClick={(e) => { e.stopPropagation(); setConfirmDialogId(r.id); }}>
+              <CheckCircle className="h-3.5 w-3.5" />
+            </Button>
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-destructive" title="Cancelar" disabled={!canCancel} onClick={(e) => { e.stopPropagation(); setCancelDialogId(r.id); }}>
+              <XCircle className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        );
+      },
+    },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <h1 className="text-lg font-semibold">Documentos de Saída (NF-e)</h1>
+        <p className="text-xs text-muted-foreground">
+          Ao confirmar: movimenta estoque, gera contas a receber e comissões automaticamente
+        </p>
+      </div>
+
+      <DataTable
+        columns={columns}
+        data={docs}
+        loading={isLoading}
+        searchPlaceholder="Buscar documento..."
+        addLabel="Novo Documento"
+        onAdd={() => setOpenCreate(true)}
+        filterFn={(r, s) =>
+          (r.customers?.razao_social || "").toLowerCase().includes(s) ||
+          (r.numero_nf ? String(r.numero_nf) : "").includes(s) ||
+          r.status.toLowerCase().includes(s)
+        }
+      />
+
+      {/* CREATE DIALOG */}
+      <Dialog open={openCreate} onOpenChange={setOpenCreate}>
+        <DialogContent className="sm:max-w-[90vw] max-h-[90vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Novo Documento de Saída</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              createDocMutation.mutate();
+            }}
+            className="space-y-4 overflow-y-auto flex-1"
+          >
+            {/* Header fields */}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Cliente *</Label>
+                <Select value={form.cliente_id} onValueChange={(v) => setForm({ ...form, cliente_id: v })}>
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Selecione..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {customers.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">
+                        {c.razao_social}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Representante</Label>
+                <Select
+                  value={form.representante_id}
+                  onValueChange={(v) => setForm({ ...form, representante_id: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="Nenhum" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {representatives.map((r) => (
+                      <SelectItem key={r.id} value={r.id} className="text-xs">
+                        {r.nome} ({r.percentual_comissao}%)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Cond. Pagamento</Label>
+                <Select
+                  value={form.condicao_pagamento_id}
+                  onValueChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}
+                >
+                  <SelectTrigger className="h-8 text-xs">
+                    <SelectValue placeholder="À vista (30 dias)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {paymentConditions.map((p) => (
+                      <SelectItem key={p.id} value={p.id} className="text-xs">
+                        {p.descricao} ({p.numero_parcelas}x)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Data Emissão</Label>
+                <Input
+                  className="h-8 text-xs"
+                  type="date"
+                  value={form.data_emissao}
+                  onChange={(e) => setForm({ ...form, data_emissao: e.target.value })}
+                />
+              </div>
+            </div>
+
+            {/* Items */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold">Itens do Documento</Label>
+                <Button type="button" variant="outline" size="sm" className="h-7 text-2xs" onClick={addNewItemRow}>
+                  <Plus className="h-3 w-3 mr-1" /> Adicionar Item
+                </Button>
+              </div>
+              {newItems.length === 0 && (
+                <p className="text-xs text-muted-foreground py-4 text-center border rounded">
+                  Nenhum item adicionado
+                </p>
+              )}
+              {newItems.map((item, idx) => (
+                <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
+                  <div className="grid grid-cols-[1fr_50px_80px_100px_80px_32px] gap-2 items-end">
+                    <div>
+                      <Label className="text-2xs">Item</Label>
+                      <Select value={item.item_id} onValueChange={(v) => {
+                        const found = items.find(i => i.id === v);
+                        const updated = [...newItems];
+                        updated[idx] = { ...updated[idx], item_id: v, natureza_financeira_id: (found as any)?.natureza_venda_id || "", centro_custo_id: (found as any)?.centro_custo_venda_id || "" };
+                        setNewItems(updated);
+                      }}>
+                        <SelectTrigger className="h-7 text-2xs">
+                          <SelectValue placeholder="Selecione..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {items.map((i) => (
+                            <SelectItem key={i.id} value={i.id} className="text-2xs">
+                              {i.codigo} - {i.descricao} (Est: {i.saldo_estoque})
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label className="text-2xs">UN</Label>
+                      <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-center text-muted-foreground leading-[1.75rem]">
+                        {items.find(i => i.id === item.item_id)?.unidade_medida || "UN"}
+                      </span>
+                    </div>
+                    <div>
+                      <Label className="text-2xs">Qtd</Label>
+                      <Input className="h-7 text-2xs" type="number" min="0.01" step="0.01" value={item.quantidade} onChange={(e) => updateNewItem(idx, "quantidade", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-2xs">Vlr Unit</Label>
+                      <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
+                    </div>
+                    <div>
+                      <Label className="text-2xs">Impostos</Label>
+                      <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.impostos} onChange={(e) => updateNewItem(idx, "impostos", e.target.value)} />
+                    </div>
+                    <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeNewItem(idx)}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Select value={item.natureza_financeira_id} onValueChange={(v) => updateNewItem(idx, "natureza_financeira_id", v)}>
+                      <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Financeira" /></SelectTrigger>
+                      <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
+                    </Select>
+                    <Select value={item.centro_custo_id} onValueChange={(v) => updateNewItem(idx, "centro_custo_id", v)}>
+                      <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
+                      <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              ))}
+              {newItems.length > 0 && (
+                <div className="text-right text-xs font-semibold pt-1">
+                  Total: R$ {calcTotal().toFixed(2)}
+                </div>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" size="sm" onClick={() => { setOpenCreate(false); resetForm(); }}>
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={createDocMutation.isPending || !form.cliente_id || newItems.length === 0}
+              >
+                {createDocMutation.isPending ? "Salvando..." : "Criar Documento"}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* DETAIL DIALOG */}
+      <Dialog open={openDetail} onOpenChange={(open) => { setOpenDetail(open); if (!open) setSelectedDoc(null); }}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="text-sm flex items-center gap-2">
+              {selectedDoc?.numero_nf
+                ? `NF ${selectedDoc.document_series?.serie || "1"} / ${String(selectedDoc.numero_nf).padStart(6, "0")}`
+                : `Documento ${selectedDoc?.id.slice(0, 8)}`}
+              {selectedDoc && (
+                <Badge className={`text-2xs ${statusColors[selectedDoc.status] || ""}`}>
+                  {selectedDoc.status}
+                </Badge>
+              )}
+            </DialogTitle>
+          </DialogHeader>
+          {selectedDoc && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-3 text-xs">
+                <div>
+                  <span className="text-muted-foreground">Cliente:</span>{" "}
+                  {selectedDoc.customers?.razao_social}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Representante:</span>{" "}
+                  {selectedDoc.representantes?.nome || "—"}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Emissão:</span>{" "}
+                  {format(new Date(selectedDoc.data_emissao), "dd/MM/yyyy")}
+                </div>
+                <div>
+                  <span className="text-muted-foreground">Total:</span>{" "}
+                  R$ {Number(selectedDoc.valor_total).toFixed(2)}
+                </div>
+              </div>
+
+              {/* Items list */}
+              <div className="space-y-2">
+                <Label className="text-xs font-semibold">Itens</Label>
+                <div className="border rounded">
+                  <table className="w-full text-2xs">
+                    <thead className="bg-muted/50">
+                      <tr>
+                         <th className="text-left p-1.5">Item</th>
+                         <th className="text-center p-1.5 w-12">UN</th>
+                         <th className="text-right p-1.5">Qtd</th>
+                        <th className="text-right p-1.5">Vlr Unit</th>
+                        <th className="text-right p-1.5">Impostos</th>
+                        <th className="text-right p-1.5">Subtotal</th>
+                        {selectedDoc.status === "PENDENTE" && (
+                          <th className="p-1.5 w-8"></th>
+                        )}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {docItems.map((di) => (
+                        <tr key={di.id} className="border-t">
+                           <td className="p-1.5">
+                             {di.items?.codigo} - {di.items?.descricao}
+                           </td>
+                           <td className="text-center p-1.5 text-muted-foreground">
+                             {items.find(i => i.id === di.item_id)?.unidade_medida || "UN"}
+                           </td>
+                           <td className="text-right p-1.5">{di.quantidade}</td>
+                          <td className="text-right p-1.5">
+                            R$ {Number(di.valor_unitario).toFixed(2)}
+                          </td>
+                          <td className="text-right p-1.5">
+                            R$ {Number(di.impostos).toFixed(2)}
+                          </td>
+                          <td className="text-right p-1.5">
+                            R$ {(di.quantidade * di.valor_unitario + di.impostos).toFixed(2)}
+                          </td>
+                          {selectedDoc.status === "PENDENTE" && (
+                            <td className="p-1.5">
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-5 w-5 p-0 text-destructive"
+                                onClick={() =>
+                                  removeItemFromDoc.mutate({
+                                    itemId: di.id!,
+                                    docId: selectedDoc.id,
+                                  })
+                                }
+                              >
+                                <Trash2 className="h-3 w-3" />
+                              </Button>
+                            </td>
+                          )}
+                        </tr>
+                      ))}
+                      {docItems.length === 0 && (
+                        <tr>
+                          <td colSpan={6} className="text-center p-4 text-muted-foreground">
+                            Nenhum item
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+
+              {/* Add item inline (only PENDENTE) */}
+              {selectedDoc.status === "PENDENTE" && (
+                <div className="space-y-2 border-t pt-3">
+                  <Label className="text-xs">Adicionar Item</Label>
+                  <div className="grid grid-cols-[1fr_80px_100px_80px_60px] gap-2 items-end">
+                    <Select
+                      value={detailNewItem.item_id}
+                      onValueChange={(v) =>
+                        setDetailNewItem({ ...detailNewItem, item_id: v })
+                      }
+                    >
+                      <SelectTrigger className="h-7 text-2xs">
+                        <SelectValue placeholder="Item..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {items.map((i) => (
+                          <SelectItem key={i.id} value={i.id} className="text-2xs">
+                            {i.codigo} - {i.descricao} (Est: {i.saldo_estoque})
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      className="h-7 text-2xs"
+                      type="number"
+                      placeholder="Qtd"
+                      value={detailNewItem.quantidade}
+                      onChange={(e) =>
+                        setDetailNewItem({ ...detailNewItem, quantidade: e.target.value })
+                      }
+                    />
+                    <Input
+                      className="h-7 text-2xs"
+                      type="number"
+                      placeholder="Vlr Unit"
+                      value={detailNewItem.valor_unitario}
+                      onChange={(e) =>
+                        setDetailNewItem({ ...detailNewItem, valor_unitario: e.target.value })
+                      }
+                    />
+                    <Input
+                      className="h-7 text-2xs"
+                      type="number"
+                      placeholder="Impostos"
+                      value={detailNewItem.impostos}
+                      onChange={(e) =>
+                        setDetailNewItem({ ...detailNewItem, impostos: e.target.value })
+                      }
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      className="h-7 text-2xs"
+                      disabled={!detailNewItem.item_id}
+                      onClick={() => {
+                        addItemToDoc.mutate({
+                          docId: selectedDoc.id,
+                          item: {
+                            item_id: detailNewItem.item_id,
+                            quantidade: parseFloat(detailNewItem.quantidade),
+                            valor_unitario: parseFloat(detailNewItem.valor_unitario),
+                            impostos: parseFloat(detailNewItem.impostos || "0"),
+                          },
+                        });
+                        setDetailNewItem({ item_id: "", quantidade: "1", valor_unitario: "0", impostos: "0" });
+                      }}
+                    >
+                      <Plus className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              {(selectedDoc.status === "PENDENTE" || selectedDoc.status === "PROCESSADO") && (
+                <div className="flex gap-2 pt-2 border-t">
+                  {selectedDoc.status === "PENDENTE" && (
+                    <Button
+                      size="sm"
+                      className="text-xs"
+                      onClick={() => setConfirmDialogId(selectedDoc.id)}
+                      disabled={docItems.length === 0}
+                    >
+                      <CheckCircle className="h-3.5 w-3.5 mr-1" />
+                      Confirmar Documento
+                    </Button>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setCancelDialogId(selectedDoc.id)}
+                  >
+                    <XCircle className="h-3.5 w-3.5 mr-1" />
+                    {selectedDoc.status === "PROCESSADO" ? "Cancelar (Admin)" : "Cancelar Documento"}
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* CONFIRM DIALOG */}
+      <AlertDialog open={!!confirmDialogId} onOpenChange={() => setConfirmDialogId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Confirmar Documento de Saída?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Esta ação é irreversível e irá:
+              <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                <li>Movimentar estoque (SAÍDA) para todos os itens</li>
+                <li>Gerar contas a receber conforme condição de pagamento</li>
+                <li>Registrar comissão do representante (se vinculado)</li>
+                <li>Registrar log de auditoria</li>
+              </ul>
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs">Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-xs"
+              disabled={confirmMutation.isPending}
+              onClick={() => confirmDialogId && confirmMutation.mutate(confirmDialogId)}
+            >
+              {confirmMutation.isPending ? "Processando..." : "Confirmar"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* CANCEL DIALOG */}
+      <AlertDialog open={!!cancelDialogId} onOpenChange={() => setCancelDialogId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Cancelar Documento?</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              {(() => {
+                const doc = docs.find(d => d.id === cancelDialogId);
+                if (doc?.status === "PROCESSADO") {
+                  return (
+                    <>
+                      <strong>Cancelamento transacional (somente Admin Global):</strong>
+                      <ul className="list-disc ml-4 mt-1 space-y-0.5">
+                        <li>Estorno de estoque (entrada reversa)</li>
+                        <li>Cancelamento de contas a receber em aberto</li>
+                        <li>Exclusão de comissões</li>
+                        <li>Se houver títulos já baixados, o cancelamento será bloqueado</li>
+                      </ul>
+                    </>
+                  );
+                }
+                return "O documento pendente será marcado como CANCELADO.";
+              })()}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs">Voltar</AlertDialogCancel>
+            <AlertDialogAction
+              className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              disabled={cancelPendenteMutation.isPending || cancelConfirmadoMutation.isPending}
+              onClick={() => {
+                if (!cancelDialogId) return;
+                const doc = docs.find(d => d.id === cancelDialogId);
+                if (doc?.status === "PROCESSADO") {
+                  cancelConfirmadoMutation.mutate(cancelDialogId);
+                } else {
+                  cancelPendenteMutation.mutate(cancelDialogId);
+                }
+              }}
+            >
+              {(cancelPendenteMutation.isPending || cancelConfirmadoMutation.isPending) ? "Cancelando..." : "Cancelar Documento"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
