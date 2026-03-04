@@ -11,10 +11,6 @@ export interface FinancialFilterValues {
   status: string;
   natureza_financeira_id: string;
   centro_custo_id: string;
-  data_baixa_inicio: string;
-  data_baixa_fim: string;
-  data_lancamento_inicio: string;
-  data_lancamento_fim: string;
   data_vencimento_inicio: string;
   data_vencimento_fim: string;
 }
@@ -22,8 +18,6 @@ export interface FinancialFilterValues {
 const emptyFilters: FinancialFilterValues = {
   entity_id: "", status: "",
   natureza_financeira_id: "", centro_custo_id: "",
-  data_baixa_inicio: "", data_baixa_fim: "",
-  data_lancamento_inicio: "", data_lancamento_fim: "",
   data_vencimento_inicio: "", data_vencimento_fim: "",
 };
 
@@ -100,20 +94,6 @@ export function FinancialFilters({ filters, onFiltersChange, entities, entityLab
               <Input type="date" className="h-7 text-xs w-[130px]" value={filters.data_vencimento_fim} onChange={e => onFiltersChange({ ...filters, data_vencimento_fim: e.target.value })} />
             </div>
           </div>
-          <div className="space-y-1">
-            <Label className="text-2xs">Lançamento (De - Até)</Label>
-            <div className="flex gap-1">
-              <Input type="date" className="h-7 text-xs w-[130px]" value={filters.data_lancamento_inicio} onChange={e => onFiltersChange({ ...filters, data_lancamento_inicio: e.target.value })} />
-              <Input type="date" className="h-7 text-xs w-[130px]" value={filters.data_lancamento_fim} onChange={e => onFiltersChange({ ...filters, data_lancamento_fim: e.target.value })} />
-            </div>
-          </div>
-          <div className="space-y-1">
-            <Label className="text-2xs">Baixa (De - Até)</Label>
-            <div className="flex gap-1">
-              <Input type="date" className="h-7 text-xs w-[130px]" value={filters.data_baixa_inicio} onChange={e => onFiltersChange({ ...filters, data_baixa_inicio: e.target.value })} />
-              <Input type="date" className="h-7 text-xs w-[130px]" value={filters.data_baixa_fim} onChange={e => onFiltersChange({ ...filters, data_baixa_fim: e.target.value })} />
-            </div>
-          </div>
         </div>
       </CollapsibleContent>
     </Collapsible>
@@ -123,26 +103,15 @@ export function FinancialFilters({ filters, onFiltersChange, entities, entityLab
 export function applyFinancialFilters<T extends {
   status: string;
   data_vencimento: string;
-  data_baixa: string | null;
-  data_lancamento?: string;
   fornecedor_id?: string;
+  supplier_id?: string;
   cliente_id?: string;
-  natureza_financeira_id?: string | null;
-  centro_custo_id?: string | null;
-  suppliers?: { razao_social: string } | null;
-  customers?: { razao_social: string } | null;
-}>(data: T[], filters: FinancialFilterValues, entityField: "fornecedor_id" | "cliente_id"): T[] {
+}>(data: T[], filters: FinancialFilterValues, entityField: "fornecedor_id" | "cliente_id" | "supplier_id"): T[] {
   return data.filter(r => {
     if (filters.entity_id && (r as any)[entityField] !== filters.entity_id) return false;
     if (filters.status && r.status !== filters.status) return false;
-    if (filters.natureza_financeira_id && r.natureza_financeira_id !== filters.natureza_financeira_id) return false;
-    if (filters.centro_custo_id && r.centro_custo_id !== filters.centro_custo_id) return false;
     if (filters.data_vencimento_inicio && r.data_vencimento < filters.data_vencimento_inicio) return false;
     if (filters.data_vencimento_fim && r.data_vencimento > filters.data_vencimento_fim) return false;
-    if (filters.data_baixa_inicio && (!r.data_baixa || r.data_baixa < filters.data_baixa_inicio)) return false;
-    if (filters.data_baixa_fim && (!r.data_baixa || r.data_baixa > filters.data_baixa_fim)) return false;
-    if (filters.data_lancamento_inicio && (r as any).data_lancamento && (r as any).data_lancamento < filters.data_lancamento_inicio) return false;
-    if (filters.data_lancamento_fim && (r as any).data_lancamento && (r as any).data_lancamento > filters.data_lancamento_fim) return false;
     return true;
   });
 }

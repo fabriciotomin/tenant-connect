@@ -19,6 +19,7 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, CheckCircle, FileOutput, Copy, Eye, Pencil } from "lucide-react";
+
 const statusColors: Record<string, string> = {
   RASCUNHO: "bg-yellow-100 text-yellow-800",
   CONFIRMADO: "bg-blue-100 text-blue-800",
@@ -34,7 +35,6 @@ interface ServiceOrder {
   data_fim_prevista: string | null;
   created_at: string;
   customers?: { razao_social: string } | null;
-  has_outbound_doc?: boolean;
 }
 
 export default function ServiceOrdersPage() {
@@ -45,7 +45,6 @@ export default function ServiceOrdersPage() {
   const { natures, costCenters } = useFinancialClassification();
   const [open, setOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
-  const [gerarDocId, setGerarDocId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
   const [detailsId, setDetailsId] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
@@ -60,16 +59,7 @@ export default function ServiceOrdersPage() {
         .select("*, customers(razao_social)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-
-      // Check which orders have linked outbound documents
-      const ids = data.map((d: any) => d.id);
-      const { data: docs } = await supabase
-        .from("outbound_documents")
-        .select("service_order_id")
-        .in("service_order_id", ids);
-
-      const docSet = new Set((docs || []).map((d: any) => d.service_order_id));
-      return data.map((d: any) => ({ ...d, has_outbound_doc: docSet.has(d.id) })) as ServiceOrder[];
+      return data as ServiceOrder[];
     },
   });
 
@@ -94,23 +84,20 @@ export default function ServiceOrdersPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
   });
 
   const handlePickerConfirm = (pickedItems: PickedItem[]) => {
-    const added = pickedItems.map((p) => {
-      const item = items.find(i => i.id === p.item_id);
-      return {
-        item_id: p.item_id,
-        quantidade: String(p.quantidade),
-        valor_unitario: String(p.valor_unitario),
-        natureza_financeira_id: (item as any)?.natureza_venda_id || "",
-        centro_custo_id: (item as any)?.centro_custo_venda_id || "",
-      };
-    });
+    const added = pickedItems.map((p) => ({
+      item_id: p.item_id,
+      quantidade: String(p.quantidade),
+      valor_unitario: String(p.valor_unitario),
+      natureza_financeira_id: "",
+      centro_custo_id: "",
+    }));
     setNewItems((prev) => [...prev, ...added]);
     setPickerOpen(false);
   };
@@ -133,6 +120,7 @@ export default function ServiceOrdersPage() {
         hora_fim: form.hora_fim || null,
         valor_total: valorTotal,
         created_by: user?.id,
+        status: "RASCUNHO",
       } as any).select("id").single();
       if (error) throw error;
 
@@ -162,27 +150,16 @@ export default function ServiceOrdersPage() {
 
   const confirmMutation = useMutation({
     mutationFn: async (osId: string) => {
-      const { error } = await supabase.rpc("confirmar_ordem_servico", { p_os_id: osId, p_user_id: user?.id });
+      // Direct status update instead of RPC
+      const { data: os } = await supabase.from("service_orders").select("status").eq("id", osId).single();
+      if (os?.status !== "RASCUNHO") throw new Error("OS não está em RASCUNHO");
+      const { error } = await supabase.from("service_orders").update({ status: "CONFIRMADO" } as any).eq("id", osId);
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service_orders"] });
       setConfirmId(null);
       toast.success("OS confirmada com sucesso.");
-    },
-    onError: (e: any) => toast.error(`Erro: ${e.message}`),
-  });
-
-  const gerarDocMutation = useMutation({
-    mutationFn: async (osId: string) => {
-      const { error } = await supabase.rpc("gerar_documento_saida_os", { p_os_id: osId, p_user_id: user?.id });
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["service_orders"] });
-      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
-      setGerarDocId(null);
-      toast.success("Documento de saída gerado com sucesso!");
     },
     onError: (e: any) => toast.error(`Erro: ${e.message}`),
   });
@@ -206,7 +183,8 @@ export default function ServiceOrdersPage() {
         data_fim_prevista: os.data_fim_prevista,
         valor_total: os.valor_total,
         created_by: user?.id,
-      }).select("id").single();
+        status: "RASCUNHO",
+      } as any).select("id").single();
       if (error) throw error;
 
       if (os.service_order_items?.length > 0) {
@@ -230,7 +208,7 @@ export default function ServiceOrdersPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
-  const canEdit = (r: ServiceOrder) => r.status === "RASCUNHO" && !r.has_outbound_doc;
+  const canEdit = (r: ServiceOrder) => r.status === "RASCUNHO";
 
   const columns = [
     { key: "id", label: "ID", render: (r: ServiceOrder) => r.id.slice(0, 8) + "..." },
@@ -243,7 +221,6 @@ export default function ServiceOrdersPage() {
       key: "acoes", label: "Ações", render: (r: ServiceOrder) => {
         const isEditable = canEdit(r);
         const isDraft = r.status === "RASCUNHO";
-        const isConfirmed = r.status === "CONFIRMADO";
         const canDuplicate = r.status !== "CANCELADO";
         return (
           <div className="flex gap-0.5">
@@ -255,9 +232,6 @@ export default function ServiceOrdersPage() {
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7 text-blue-600" title="Confirmar" disabled={!isDraft} onClick={(e) => { e.stopPropagation(); setConfirmId(r.id); }}>
               <CheckCircle className="h-3.5 w-3.5" />
-            </Button>
-            <Button variant="ghost" size="icon" className="h-7 w-7 text-green-600" title="Gerar Doc. Saída" disabled={!isConfirmed} onClick={(e) => { e.stopPropagation(); setGerarDocId(r.id); }}>
-              <FileOutput className="h-3.5 w-3.5" />
             </Button>
             <Button variant="ghost" size="icon" className="h-7 w-7" title="Duplicar" disabled={!canDuplicate} onClick={(e) => { e.stopPropagation(); duplicateMutation.mutate(r.id); }}>
               <Copy className="h-3.5 w-3.5" />
@@ -272,7 +246,7 @@ export default function ServiceOrdersPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-lg font-semibold">Ordens de Serviço</h1>
-        <p className="text-xs text-muted-foreground">Confirmar OS altera status. O financeiro é gerado pelo Documento de Saída.</p>
+        <p className="text-xs text-muted-foreground">Gestão de ordens de serviço</p>
       </div>
 
       <DataTable columns={columns} data={orders} loading={isLoading} searchPlaceholder="Buscar OS..." addLabel="Nova OS" onAdd={() => setOpen(true)}
@@ -331,9 +305,9 @@ export default function ServiceOrdersPage() {
                 const item = items.find(i => i.id === ni.item_id);
                 return (
                   <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
-                     <div className="grid grid-cols-12 gap-2 items-end">
+                    <div className="grid grid-cols-12 gap-2 items-end">
                       <div className="col-span-4">
-                       <span className="text-xs truncate block border rounded-md px-2 py-1.5 h-8 bg-muted/30">
+                        <span className="text-xs truncate block border rounded-md px-2 py-1.5 h-8 bg-muted/30">
                           {item ? `${item.codigo} - ${item.descricao}` : ni.item_id.slice(0, 8)}
                         </span>
                       </div>
@@ -356,12 +330,12 @@ export default function ServiceOrdersPage() {
                     </div>
                     <div className="grid grid-cols-2 gap-2">
                       <Select value={ni.natureza_financeira_id} onValueChange={(v) => { const u = [...newItems]; u[idx].natureza_financeira_id = v; setNewItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Financeira" /></SelectTrigger>
-                        <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Fin." /></SelectTrigger>
+                        <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
                       </Select>
                       <Select value={ni.centro_custo_id} onValueChange={(v) => { const u = [...newItems]; u[idx].centro_custo_id = v; setNewItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
-                        <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
+                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro Custo" /></SelectTrigger>
+                        <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
                       </Select>
                     </div>
                   </div>
@@ -371,49 +345,28 @@ export default function ServiceOrdersPage() {
 
             <div className="flex justify-end gap-2 pt-2">
               <Button type="button" variant="outline" size="sm" onClick={() => setOpen(false)}>Cancelar</Button>
-              <Button type="submit" size="sm" disabled={createMutation.isPending}>{createMutation.isPending ? "Salvando..." : "Salvar"}</Button>
+              <Button type="submit" size="sm" disabled={createMutation.isPending}>
+                {createMutation.isPending ? "Salvando..." : "Criar OS"}
+              </Button>
             </div>
           </form>
         </DialogContent>
       </Dialog>
 
-      {/* ItemPickerDialog for new OS */}
-      <ItemPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} onConfirm={handlePickerConfirm} excludeIds={newItems.map(i => i.item_id)} />
+      <ItemPickerDialog open={pickerOpen} onOpenChange={setPickerOpen} onConfirm={handlePickerConfirm} />
+      <ServiceOrderDetailsDialog orderId={detailsId} open={!!detailsId} onOpenChange={() => setDetailsId(null)} />
+      <ServiceOrderEditDialog orderId={editId} open={!!editId} onOpenChange={(v) => { if (!v) { setEditId(null); queryClient.invalidateQueries({ queryKey: ["service_orders"] }); } }} />
 
-      {/* Details Dialog */}
-      <ServiceOrderDetailsDialog orderId={detailsId} open={!!detailsId} onOpenChange={(o) => { if (!o) setDetailsId(null); }} />
-
-      {/* Edit Dialog */}
-      <ServiceOrderEditDialog orderId={editId} open={!!editId} onOpenChange={(o) => { if (!o) setEditId(null); }} />
-
-      {/* Confirm OS Dialog */}
+      {/* Confirm Dialog */}
       <AlertDialog open={!!confirmId} onOpenChange={() => setConfirmId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-sm">Confirmar Ordem de Serviço</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
-              Ao confirmar, a OS terá status CONFIRMADO. Para gerar o financeiro, utilize o botão "Gerar Doc. Saída" após a confirmação.
-            </AlertDialogDescription>
+            <AlertDialogTitle>Confirmar Ordem de Serviço?</AlertDialogTitle>
+            <AlertDialogDescription>O status será alterado para CONFIRMADO.</AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancelar</AlertDialogCancel>
             <AlertDialogAction onClick={() => confirmId && confirmMutation.mutate(confirmId)}>Confirmar</AlertDialogAction>
-          </AlertDialogFooter>
-        </AlertDialogContent>
-      </AlertDialog>
-
-      {/* Gerar Doc. Saída Dialog */}
-      <AlertDialog open={!!gerarDocId} onOpenChange={() => setGerarDocId(null)}>
-        <AlertDialogContent>
-          <AlertDialogHeader>
-            <AlertDialogTitle className="text-sm">Gerar Documento de Saída</AlertDialogTitle>
-            <AlertDialogDescription className="text-xs">
-              Será criado um Documento de Saída (PENDENTE) com os itens desta OS. Ao confirmar o documento, o financeiro será gerado automaticamente.
-            </AlertDialogDescription>
-          </AlertDialogHeader>
-          <AlertDialogFooter>
-            <AlertDialogCancel>Cancelar</AlertDialogCancel>
-            <AlertDialogAction onClick={() => gerarDocId && gerarDocMutation.mutate(gerarDocId)}>Gerar Documento</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
