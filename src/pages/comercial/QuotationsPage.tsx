@@ -79,7 +79,7 @@ export default function QuotationsPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
@@ -90,21 +90,17 @@ export default function QuotationsPage() {
   function handleAddSelectedItems(pickedItems: PickedItem[]) {
     const newItems: QItem[] = pickedItems
       .filter((p) => !orderItems.some((oi) => oi.item_id === p.item_id))
-      .map((p) => {
-        const item = items.find(i => i.id === p.item_id);
-        return {
-          item_id: p.item_id,
-          quantidade: String(p.quantidade),
-          valor_unitario: String(p.valor_unitario),
-          natureza_financeira_id: (item as any)?.natureza_venda_id || "",
-          centro_custo_id: (item as any)?.centro_custo_venda_id || "",
-        };
-      });
+      .map((p) => ({
+        item_id: p.item_id,
+        quantidade: String(p.quantidade),
+        valor_unitario: String(p.valor_unitario),
+        natureza_financeira_id: "",
+        centro_custo_id: "",
+      }));
     setOrderItems([...orderItems, ...newItems]);
   }
 
   async function handleEdit(quotation: Quotation) {
-    // Load items for this quotation
     const { data: qItems, error } = await supabase
       .from("quotation_items")
       .select("item_id, quantidade, valor_unitario, natureza_financeira_id, centro_custo_id")
@@ -117,11 +113,11 @@ export default function QuotationsPage() {
       validade: quotation.validade || "",
     });
     setOrderItems((qItems || []).map(i => ({
-      item_id: i.item_id,
+      item_id: i.item_id || "",
       quantidade: String(i.quantidade),
       valor_unitario: String(i.valor_unitario),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "",
-      centro_custo_id: (i as any).centro_custo_id || "",
+      natureza_financeira_id: i.natureza_financeira_id || "",
+      centro_custo_id: i.centro_custo_id || "",
     })));
     setOpen(true);
   }
@@ -139,20 +135,17 @@ export default function QuotationsPage() {
       const valorTotal = orderItems.reduce((s, i) => s + parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0"), 0);
 
       if (editingId) {
-        // Validate on backend via RPC
-        const { error: ve } = await supabase.rpc("validate_quotation_editable", { p_quotation_id: editingId });
-        if (ve) throw ve;
+        // Check status directly
+        const { data: existing } = await supabase.from("quotations").select("status").eq("id", editingId).single();
+        if (existing?.status !== "RASCUNHO") throw new Error("Apenas orçamentos em RASCUNHO podem ser editados");
 
-        // Update quotation
         const { error } = await supabase.from("quotations").update({
           customer_id: form.customer_id || null,
           validade: form.validade || null,
           valor_total: valorTotal,
-          updated_by: user?.id,
         }).eq("id", editingId);
         if (error) throw error;
 
-        // Delete old items and insert new
         const { error: de } = await supabase.from("quotation_items").delete().eq("quotation_id", editingId);
         if (de) throw de;
 
@@ -170,7 +163,6 @@ export default function QuotationsPage() {
           if (ie) throw ie;
         }
       } else {
-        // Create
         const { data: q, error } = await supabase.from("quotations").insert({
           tenant_id: tenant.id,
           customer_id: form.customer_id || null,
@@ -215,29 +207,28 @@ export default function QuotationsPage() {
       if (qe) throw qe;
       if (!q.customer_id) throw new Error("Orçamento precisa de cliente para gerar pedido");
 
+      // Create sales order using sale_items table
       const { data: so, error: se } = await supabase.from("sales_orders").insert({
         tenant_id: tenant.id,
         customer_id: q.customer_id,
-        quotation_id: quotationId,
         valor_total: q.valor_total,
-        created_by: user?.id,
       } as any).select("id").single();
       if (se) throw se;
 
-      if (q.quotation_items?.length > 0) {
-        await supabase.from("sales_order_items").insert(
-          q.quotation_items.map((i: any) => ({
-            sales_order_id: so.id,
+      if (q.quotation_items && (q.quotation_items as any[]).length > 0) {
+        await supabase.from("sale_items").insert(
+          (q.quotation_items as any[]).map((i: any) => ({
+            sale_id: so.id,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: i.quantidade,
-            valor_unitario: i.valor_unitario,
-            natureza_financeira_id: i.natureza_financeira_id || null,
-            centro_custo_id: i.centro_custo_id || null,
+            preco_unitario: i.valor_unitario,
+            total_item: i.quantidade * i.valor_unitario,
           }))
         );
       }
 
-      await supabase.from("quotations").update({ status: "APROVADO" as any, updated_by: user?.id }).eq("id", quotationId);
+      await supabase.from("quotations").update({ status: "APROVADO" as any }).eq("id", quotationId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["quotations"] });
@@ -276,9 +267,9 @@ export default function QuotationsPage() {
       } as any).select("id").single();
       if (error) throw error;
 
-      if (q.quotation_items?.length > 0) {
+      if (q.quotation_items && (q.quotation_items as any[]).length > 0) {
         const { error: ie } = await supabase.from("quotation_items").insert(
-          q.quotation_items.map((i: any) => ({
+          (q.quotation_items as any[]).map((i: any) => ({
             quotation_id: nq.id,
             item_id: i.item_id,
             quantidade: i.quantidade,
@@ -299,7 +290,10 @@ export default function QuotationsPage() {
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("cancel_quotation", { p_id: id });
+      const { error } = await supabase
+        .from("quotations")
+        .update({ status: "CANCELADO" as any })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -317,8 +311,11 @@ export default function QuotationsPage() {
       .eq("quotation_id", q.id);
     setViewDoc(q);
     setViewItems((qItems || []).map(i => ({
-      item_id: i.item_id, quantidade: String(i.quantidade), valor_unitario: String(i.valor_unitario),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "", centro_custo_id: (i as any).centro_custo_id || "",
+      item_id: i.item_id || "",
+      quantidade: String(i.quantidade),
+      valor_unitario: String(i.valor_unitario),
+      natureza_financeira_id: i.natureza_financeira_id || "",
+      centro_custo_id: i.centro_custo_id || "",
     })));
   }
 

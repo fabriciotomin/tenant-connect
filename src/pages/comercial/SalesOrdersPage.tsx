@@ -26,25 +26,17 @@ const statusColors: Record<string, string> = {
 interface SalesOrder {
   id: string;
   numero_sequencial: number;
-  quotation_id: string | null;
   valor_total: number;
   status: string;
   created_at: string;
   customer_id: string;
-  representante_id: string | null;
-  condicao_pagamento_id: string | null;
-  forma_pagamento_id: string | null;
   customers?: { razao_social: string } | null;
-  representantes?: { nome: string } | null;
-  quotations?: { numero_sequencial: number } | null;
 }
 
 interface SOItem {
   item_id: string;
   quantidade: string;
   valor_unitario: string;
-  natureza_financeira_id: string;
-  centro_custo_id: string;
 }
 
 export default function SalesOrdersPage() {
@@ -53,7 +45,7 @@ export default function SalesOrdersPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ customer_id: "", representante_id: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
+  const [form, setForm] = useState({ customer_id: "" });
   const [orderItems, setOrderItems] = useState<SOItem[]>([]);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<SalesOrder | null>(null);
@@ -65,7 +57,7 @@ export default function SalesOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("sales_orders")
-        .select("*, customers(razao_social), representantes(nome), quotations(numero_sequencial)")
+        .select("*, customers(razao_social)")
         .order("numero_sequencial", { ascending: false });
       if (error) throw error;
       return data as SalesOrder[];
@@ -81,80 +73,40 @@ export default function SalesOrdersPage() {
     },
   });
 
-  const { data: representatives = [] } = useQuery({
-    queryKey: ["representantes_select"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("representantes").select("id, nome").order("nome");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: paymentConditions = [] } = useQuery({
-    queryKey: ["payment_conditions_select"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("payment_conditions").select("id, descricao").order("descricao");
-      if (error) throw error;
-      return data;
-    },
-  });
-
-  const { data: paymentMethods = [] } = useQuery({
-    queryKey: ["formas_pagamento_select"],
-    queryFn: async () => {
-      const { data, error } = await supabase.from("formas_pagamento").select("id, nome").eq("ativo", true).order("nome");
-      if (error) throw error;
-      return data;
-    },
-  });
-
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
   });
-
-  const { natures, costCenters } = useFinancialClassification();
 
   function handleAddSelectedItems(pickedItems: PickedItem[]) {
     const newItems: SOItem[] = pickedItems
       .filter((p) => !orderItems.some((oi) => oi.item_id === p.item_id))
-      .map((p) => {
-        const item = items.find(i => i.id === p.item_id);
-        return {
-          item_id: p.item_id,
-          quantidade: String(p.quantidade),
-          valor_unitario: String(p.valor_unitario),
-          natureza_financeira_id: (item as any)?.natureza_venda_id || "",
-          centro_custo_id: (item as any)?.centro_custo_venda_id || "",
-        };
-      });
+      .map((p) => ({
+        item_id: p.item_id,
+        quantidade: String(p.quantidade),
+        valor_unitario: String(p.valor_unitario),
+      }));
     setOrderItems([...orderItems, ...newItems]);
   }
 
   async function handleEdit(order: SalesOrder) {
+    // Use sale_items table
     const { data: soItems, error } = await supabase
-      .from("sales_order_items")
-      .select("item_id, quantidade, valor_unitario, natureza_financeira_id, centro_custo_id")
-      .eq("sales_order_id", order.id);
+      .from("sale_items")
+      .select("item_id, quantidade, preco_unitario")
+      .eq("sale_id", order.id);
     if (error) { toast.error(error.message); return; }
 
     setEditingId(order.id);
-    setForm({
-      customer_id: order.customer_id || "",
-      representante_id: order.representante_id || "",
-      condicao_pagamento_id: order.condicao_pagamento_id || "",
-      forma_pagamento_id: order.forma_pagamento_id || "",
-    });
+    setForm({ customer_id: order.customer_id || "" });
     setOrderItems((soItems || []).map(i => ({
-      item_id: i.item_id,
+      item_id: i.item_id || "",
       quantidade: String(i.quantidade),
-      valor_unitario: String(i.valor_unitario),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "",
-      centro_custo_id: (i as any).centro_custo_id || "",
+      valor_unitario: String(i.preco_unitario),
     })));
     setOpen(true);
   }
@@ -162,7 +114,7 @@ export default function SalesOrdersPage() {
   function handleClose() {
     setOpen(false);
     setEditingId(null);
-    setForm({ customer_id: "", representante_id: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
+    setForm({ customer_id: "" });
     setOrderItems([]);
   }
 
@@ -174,30 +126,27 @@ export default function SalesOrdersPage() {
       const valorTotal = orderItems.reduce((s, i) => s + parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0"), 0);
 
       if (editingId) {
-        const { error: ve } = await supabase.rpc("validate_sales_order_editable", { p_order_id: editingId });
-        if (ve) throw ve;
+        // Check status directly
+        const { data: existing } = await supabase.from("sales_orders").select("status").eq("id", editingId).single();
+        if (existing?.status !== "RASCUNHO") throw new Error("Apenas pedidos em RASCUNHO podem ser editados");
 
         const { error } = await supabase.from("sales_orders").update({
           customer_id: form.customer_id,
-          representante_id: form.representante_id || null,
-          condicao_pagamento_id: form.condicao_pagamento_id || null,
-          forma_pagamento_id: form.forma_pagamento_id || null,
           valor_total: valorTotal,
-          updated_by: user?.id,
         }).eq("id", editingId);
         if (error) throw error;
 
-        const { error: de } = await supabase.from("sales_order_items").delete().eq("sales_order_id", editingId);
+        const { error: de } = await supabase.from("sale_items").delete().eq("sale_id", editingId);
         if (de) throw de;
 
-        const { error: ie } = await supabase.from("sales_order_items").insert(
+        const { error: ie } = await supabase.from("sale_items").insert(
           orderItems.map(i => ({
-            sales_order_id: editingId,
+            sale_id: editingId,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
-            valor_unitario: parseFloat(i.valor_unitario),
-            natureza_financeira_id: i.natureza_financeira_id || null,
-            centro_custo_id: i.centro_custo_id || null,
+            preco_unitario: parseFloat(i.valor_unitario),
+            total_item: parseFloat(i.quantidade) * parseFloat(i.valor_unitario),
           }))
         );
         if (ie) throw ie;
@@ -205,22 +154,18 @@ export default function SalesOrdersPage() {
         const { data: so, error } = await supabase.from("sales_orders").insert({
           tenant_id: tenant.id,
           customer_id: form.customer_id,
-          representante_id: form.representante_id || null,
-          condicao_pagamento_id: form.condicao_pagamento_id || null,
-          forma_pagamento_id: form.forma_pagamento_id || null,
           valor_total: valorTotal,
-          created_by: user?.id,
         } as any).select("id").single();
         if (error) throw error;
 
-        const { error: ie } = await supabase.from("sales_order_items").insert(
+        const { error: ie } = await supabase.from("sale_items").insert(
           orderItems.map(i => ({
-            sales_order_id: so.id,
+            sale_id: so.id,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
-            valor_unitario: parseFloat(i.valor_unitario),
-            natureza_financeira_id: i.natureza_financeira_id || null,
-            centro_custo_id: i.centro_custo_id || null,
+            preco_unitario: parseFloat(i.valor_unitario),
+            total_item: parseFloat(i.quantidade) * parseFloat(i.valor_unitario),
           }))
         );
         if (ie) throw ie;
@@ -239,7 +184,7 @@ export default function SalesOrdersPage() {
       if (!tenant?.id) throw new Error("Sem tenant");
       const { data: so, error: oe } = await supabase
         .from("sales_orders")
-        .select("*, sales_order_items(*)")
+        .select("*, sale_items(*)")
         .eq("id", orderId)
         .single();
       if (oe) throw oe;
@@ -247,29 +192,24 @@ export default function SalesOrdersPage() {
       const { data: doc, error: de } = await supabase.from("outbound_documents").insert({
         tenant_id: tenant.id,
         cliente_id: so.customer_id,
-        representante_id: so.representante_id,
-        condicao_pagamento_id: so.condicao_pagamento_id,
-        forma_pagamento_id: so.forma_pagamento_id,
         pedido_venda_id: orderId,
         valor_total: so.valor_total,
-        created_by: user?.id,
-      }).select("id").single();
+      } as any).select("id").single();
       if (de) throw de;
 
-      if (so.sales_order_items?.length > 0) {
+      const saleItems = (so as any).sale_items as any[] || [];
+      if (saleItems.length > 0) {
         await supabase.from("outbound_document_items").insert(
-          so.sales_order_items.map((i: any) => ({
+          saleItems.map((i: any) => ({
             outbound_document_id: doc.id,
             item_id: i.item_id,
             quantidade: i.quantidade,
-            valor_unitario: i.valor_unitario,
-            natureza_financeira_id: i.natureza_financeira_id || null,
-            centro_custo_id: i.centro_custo_id || null,
+            valor_unitario: i.preco_unitario,
           }))
         );
       }
 
-      await supabase.from("sales_orders").update({ status: "CONFIRMADO" as any, updated_by: user?.id }).eq("id", orderId);
+      await supabase.from("sales_orders").update({ status: "CONFIRMADO" as any }).eq("id", orderId);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["sales_orders"] });
@@ -293,7 +233,7 @@ export default function SalesOrdersPage() {
       if (!tenant?.id) throw new Error("Sem tenant");
       const { data: so, error: oe } = await supabase
         .from("sales_orders")
-        .select("*, sales_order_items(*)")
+        .select("*, sale_items(*)")
         .eq("id", orderId)
         .single();
       if (oe) throw oe;
@@ -302,23 +242,20 @@ export default function SalesOrdersPage() {
       const { data: nso, error } = await supabase.from("sales_orders").insert({
         tenant_id: tenant.id,
         customer_id: so.customer_id,
-        representante_id: so.representante_id,
-        condicao_pagamento_id: so.condicao_pagamento_id,
-        forma_pagamento_id: so.forma_pagamento_id,
         valor_total: so.valor_total,
-        created_by: user?.id,
       } as any).select("id").single();
       if (error) throw error;
 
-      if (so.sales_order_items?.length > 0) {
-        const { error: ie } = await supabase.from("sales_order_items").insert(
-          so.sales_order_items.map((i: any) => ({
-            sales_order_id: nso.id,
+      const saleItems = (so as any).sale_items as any[] || [];
+      if (saleItems.length > 0) {
+        const { error: ie } = await supabase.from("sale_items").insert(
+          saleItems.map((i: any) => ({
+            sale_id: nso.id,
+            tenant_id: tenant.id,
             item_id: i.item_id,
             quantidade: i.quantidade,
-            valor_unitario: i.valor_unitario,
-            natureza_financeira_id: i.natureza_financeira_id || null,
-            centro_custo_id: i.centro_custo_id || null,
+            preco_unitario: i.preco_unitario,
+            total_item: i.total_item,
           }))
         );
         if (ie) throw ie;
@@ -333,7 +270,10 @@ export default function SalesOrdersPage() {
 
   const cancelMutation = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("cancel_sales_order", { p_id: id });
+      const { error } = await supabase
+        .from("sales_orders")
+        .update({ status: "CANCELADO" as any })
+        .eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -346,21 +286,20 @@ export default function SalesOrdersPage() {
 
   async function handleView(order: SalesOrder) {
     const { data: soItems } = await supabase
-      .from("sales_order_items")
-      .select("item_id, quantidade, valor_unitario, natureza_financeira_id, centro_custo_id")
-      .eq("sales_order_id", order.id);
+      .from("sale_items")
+      .select("item_id, quantidade, preco_unitario")
+      .eq("sale_id", order.id);
     setViewDoc(order);
     setViewItems((soItems || []).map(i => ({
-      item_id: i.item_id, quantidade: String(i.quantidade), valor_unitario: String(i.valor_unitario),
-      natureza_financeira_id: (i as any).natureza_financeira_id || "", centro_custo_id: (i as any).centro_custo_id || "",
+      item_id: i.item_id || "",
+      quantidade: String(i.quantidade),
+      valor_unitario: String(i.preco_unitario),
     })));
   }
 
   const columns = [
     { key: "numero", label: "Nº", render: (r: SalesOrder) => `PV-${r.numero_sequencial}` },
     { key: "cliente", label: "Cliente", render: (r: SalesOrder) => r.customers?.razao_social || "—" },
-    { key: "orcamento", label: "Orçamento", render: (r: SalesOrder) => r.quotations?.numero_sequencial ? `ORC-${r.quotations.numero_sequencial}` : "—" },
-    { key: "representante", label: "Representante", render: (r: SalesOrder) => r.representantes?.nome || "—" },
     { key: "status", label: "Status", render: (r: SalesOrder) => <Badge className={`text-2xs ${statusColors[r.status]}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor", render: (r: SalesOrder) => `R$ ${Number(r.valor_total).toFixed(2)}` },
     { key: "created_at", label: "Criado", render: (r: SalesOrder) => format(new Date(r.created_at), "dd/MM/yyyy") },
@@ -414,29 +353,6 @@ export default function SalesOrdersPage() {
                   <SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.razao_social}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Representante</Label>
-                <Select value={form.representante_id} onValueChange={(v) => setForm({ ...form, representante_id: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                  <SelectContent>{representatives.map(r => <SelectItem key={r.id} value={r.id} className="text-xs">{r.nome}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Cond. Pagamento</Label>
-                <Select value={form.condicao_pagamento_id} onValueChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
-                  <SelectContent>{paymentConditions.map(p => <SelectItem key={p.id} value={p.id} className="text-xs">{p.descricao}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Forma Pagamento</Label>
-                <Select value={form.forma_pagamento_id} onValueChange={(v) => setForm({ ...form, forma_pagamento_id: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
-                  <SelectContent>{paymentMethods.map(p => <SelectItem key={p.id} value={p.id} className="text-xs">{p.nome}</SelectItem>)}</SelectContent>
-                </Select>
-              </div>
             </div>
 
             <div className="space-y-2">
@@ -453,8 +369,6 @@ export default function SalesOrdersPage() {
                        <tr>
                          <th className="text-left p-1.5">Item</th>
                          <th className="text-center p-1.5 w-12">UN</th>
-                         <th className="text-left p-1.5 w-40">Nat. Financeira</th>
-                        <th className="text-left p-1.5 w-40">Centro Custo</th>
                         <th className="text-right p-1.5 w-20">Qtd</th>
                         <th className="text-right p-1.5 w-24">Vlr Unit</th>
                         <th className="text-right p-1.5 w-24">Subtotal</th>
@@ -466,18 +380,6 @@ export default function SalesOrdersPage() {
                         <tr key={idx} className="border-t">
                            <td className="p-1.5 text-xs truncate max-w-[140px]">{getItemLabel(oi.item_id)}</td>
                            <td className="p-1.5 text-center text-xs text-muted-foreground">{getItemUnit(oi.item_id)}</td>
-                           <td className="p-1">
-                            <Select value={oi.natureza_financeira_id} onValueChange={(v) => { const u = [...orderItems]; u[idx].natureza_financeira_id = v; setOrderItems(u); }}>
-                              <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
-                              <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </td>
-                          <td className="p-1">
-                            <Select value={oi.centro_custo_id} onValueChange={(v) => { const u = [...orderItems]; u[idx].centro_custo_id = v; setOrderItems(u); }}>
-                              <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
-                              <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                            </Select>
-                          </td>
                           <td className="p-1">
                             <Input type="number" step="0.01" className="h-7 text-xs text-right" value={oi.quantidade}
                               onChange={(e) => { const u = [...orderItems]; u[idx].quantidade = e.target.value; setOrderItems(u); }} />
@@ -532,7 +434,6 @@ export default function SalesOrdersPage() {
             <div className="grid grid-cols-2 gap-3">
               <div><span className="text-muted-foreground">Cliente:</span> {viewDoc?.customers?.razao_social || "—"}</div>
               <div><span className="text-muted-foreground">Status:</span> <Badge className={`text-2xs ${statusColors[viewDoc?.status || ""]}`}>{viewDoc?.status}</Badge></div>
-              <div><span className="text-muted-foreground">Representante:</span> {viewDoc?.representantes?.nome || "—"}</div>
               <div><span className="text-muted-foreground">Valor Total:</span> R$ {Number(viewDoc?.valor_total || 0).toFixed(2)}</div>
             </div>
             {viewItems.length > 0 && (
