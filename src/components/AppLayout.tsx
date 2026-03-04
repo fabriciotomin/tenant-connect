@@ -42,13 +42,15 @@ export function AppLayout() {
   };
 
   const handleSwitchTenant = async (newSlug: string) => {
-    // Find the target tenant id to sync profile.tenant_id before navigating
     const target = empresas.find((e) => e.slug === newSlug);
-    if (target) {
+    if (target && profile) {
       try {
-        await supabase.rpc("link_current_user_to_tenant", { _tenant_id: target.id });
+        await supabase
+          .from("profiles")
+          .update({ tenant_id: target.id })
+          .eq("id", profile.id);
       } catch (e) {
-        console.warn("link_current_user_to_tenant on switch:", e);
+        console.warn("tenant switch profile update:", e);
       }
     }
     navigate(`/t/${newSlug}`, { replace: true });
@@ -62,7 +64,6 @@ export function AppLayout() {
           <header className="h-10 border-b flex items-center justify-between px-2 bg-card shrink-0">
             <div className="flex items-center gap-1">
               <SidebarTrigger className="h-7 w-7" />
-              {/* Company switcher for admin_global */}
               {isAdminGlobal && empresas.length > 1 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>

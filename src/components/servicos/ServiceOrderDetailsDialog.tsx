@@ -45,19 +45,6 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
     },
   });
 
-  const { data: linkedDoc } = useQuery({
-    queryKey: ["service_order_linked_doc", orderId],
-    enabled: !!orderId && open,
-    queryFn: async () => {
-      const { data } = await supabase
-        .from("outbound_documents")
-        .select("id, numero, status, data_emissao, valor_total")
-        .eq("service_order_id", orderId!)
-        .maybeSingle();
-      return data;
-    },
-  });
-
   if (!order) return null;
 
   const o = order as any;
@@ -70,7 +57,6 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
         </DialogHeader>
 
         <div className="space-y-4 text-xs">
-          {/* Header info */}
           <div className="grid grid-cols-2 gap-3">
             <div>
               <span className="text-muted-foreground">ID:</span>
@@ -90,7 +76,6 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
             </div>
           </div>
 
-          {/* Schedule */}
           <div className="border-t pt-3">
             <h4 className="font-medium mb-2">Agendamento</h4>
             <div className="grid grid-cols-2 gap-3">
@@ -113,7 +98,6 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
             </div>
           </div>
 
-          {/* Items */}
           <div className="border-t pt-3">
             <h4 className="font-medium mb-2">Itens / Serviços</h4>
             {items.length === 0 ? (
@@ -135,38 +119,11 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
             )}
           </div>
 
-          {/* Total */}
           <div className="border-t pt-3 flex justify-between font-medium">
             <span>Valor Total:</span>
             <span>R$ {Number(o.valor_total).toFixed(2)}</span>
           </div>
 
-          {/* Linked Document */}
-          {linkedDoc && (
-            <div className="border-t pt-3">
-              <h4 className="font-medium mb-2">Documento de Saída Vinculado</h4>
-              <div className="grid grid-cols-2 gap-3">
-                <div>
-                  <span className="text-muted-foreground">Número:</span>
-                  <p>{linkedDoc.numero || linkedDoc.id.slice(0, 8)}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Status:</span>
-                  <p>{linkedDoc.status}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Emissão:</span>
-                  <p>{linkedDoc.data_emissao ? format(new Date(linkedDoc.data_emissao), "dd/MM/yyyy") : "—"}</p>
-                </div>
-                <div>
-                  <span className="text-muted-foreground">Valor:</span>
-                  <p>R$ {Number(linkedDoc.valor_total).toFixed(2)}</p>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Dates */}
           <div className="border-t pt-3 grid grid-cols-2 gap-3 text-muted-foreground">
             <div>
               <span>Criado em:</span>

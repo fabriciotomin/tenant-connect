@@ -84,13 +84,12 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   const { data: allItems = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda, natureza_financeira_id, centro_custo_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
   });
 
-  // Populate form when order loads
   useEffect(() => {
     if (order && open) {
       setForm({
@@ -109,11 +108,11 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
       setEditItems(
         orderItems.map((i) => ({
           id: i.id,
-          item_id: i.item_id,
+          item_id: i.item_id || "",
           quantidade: String(i.quantidade),
           valor_unitario: String(i.valor_unitario),
-          natureza_financeira_id: (i as any).natureza_financeira_id || "",
-          centro_custo_id: (i as any).centro_custo_id || "",
+          natureza_financeira_id: i.natureza_financeira_id || "",
+          centro_custo_id: i.centro_custo_id || "",
         }))
       );
     } else if (open) {
@@ -122,16 +121,13 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   }, [orderItems, open]);
 
   const handlePickerConfirm = (pickedItems: PickedItem[]) => {
-    const added = pickedItems.map((p) => {
-      const item = allItems.find(i => i.id === p.item_id);
-      return {
-        item_id: p.item_id,
-        quantidade: String(p.quantidade),
-        valor_unitario: String(p.valor_unitario),
-        natureza_financeira_id: (item as any)?.natureza_financeira_id || "",
-        centro_custo_id: (item as any)?.centro_custo_id || "",
-      };
-    });
+    const added = pickedItems.map((p) => ({
+      item_id: p.item_id,
+      quantidade: String(p.quantidade),
+      valor_unitario: String(p.valor_unitario),
+      natureza_financeira_id: "",
+      centro_custo_id: "",
+    }));
     setEditItems((prev) => [...prev, ...added]);
     setPickerOpen(false);
   };
@@ -147,7 +143,6 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
         0
       );
 
-      // Update the order
       const { error } = await supabase
         .from("service_orders")
         .update({
@@ -160,22 +155,16 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
           data_inicio_prevista: form.data_inicio || null,
           data_fim_prevista: form.data_fim || null,
           valor_total: valorTotal,
-          updated_by: user?.id,
-        } as any)
+        })
         .eq("id", orderId);
       if (error) throw error;
 
-      // Delete removed items
       const deletedIds = editItems.filter((i) => i._deleted && i.id).map((i) => i.id!);
       if (deletedIds.length > 0) {
-        const { error: de } = await supabase
-          .from("service_order_items")
-          .delete()
-          .in("id", deletedIds);
+        const { error: de } = await supabase.from("service_order_items").delete().in("id", deletedIds);
         if (de) throw de;
       }
 
-      // Update existing items
       for (const item of activeItems.filter((i) => i.id)) {
         const { error: ue } = await supabase
           .from("service_order_items")
@@ -189,7 +178,6 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
         if (ue) throw ue;
       }
 
-      // Insert new items
       const newItems = activeItems.filter((i) => !i.id);
       if (newItems.length > 0) {
         const { error: ie } = await supabase.from("service_order_items").insert(
@@ -262,7 +250,6 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
               </div>
             </div>
 
-            {/* Items */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-medium">Itens / Serviços</Label>

@@ -33,10 +33,6 @@ export function QuickItemDialog({
     codigo: defaultCodigo,
     descricao: defaultDescricao,
     unidade_medida: "UN",
-    natureza_financeira_id: "",
-    centro_custo_id: "",
-    natureza_venda_id: "",
-    centro_custo_venda_id: "",
     custo_medio: "0",
   });
 
@@ -46,10 +42,6 @@ export function QuickItemDialog({
         codigo: defaultCodigo,
         descricao: defaultDescricao,
         unidade_medida: "UN",
-        natureza_financeira_id: "",
-        centro_custo_id: "",
-        natureza_venda_id: "",
-        centro_custo_venda_id: "",
         custo_medio: "0",
       });
     }
@@ -60,10 +52,6 @@ export function QuickItemDialog({
     if (!tenant?.id) return;
     if (!form.codigo.trim()) { toast.error("Código é obrigatório"); return; }
     if (!form.descricao.trim()) { toast.error("Descrição é obrigatória"); return; }
-    if (!form.natureza_financeira_id) { toast.error("Natureza Compra é obrigatória"); return; }
-    if (!form.centro_custo_id) { toast.error("Centro de Custo Compra é obrigatório"); return; }
-    if (!form.natureza_venda_id) { toast.error("Natureza Venda é obrigatória"); return; }
-    if (!form.centro_custo_venda_id) { toast.error("Centro de Custo Venda é obrigatório"); return; }
 
     setSaving(true);
     try {
@@ -74,18 +62,20 @@ export function QuickItemDialog({
           codigo: form.codigo.trim(),
           descricao: form.descricao.trim(),
           unidade_medida: form.unidade_medida || "UN",
-          natureza_financeira_id: form.natureza_financeira_id,
-          centro_custo_id: form.centro_custo_id,
-          natureza_venda_id: form.natureza_venda_id,
-          centro_custo_venda_id: form.centro_custo_venda_id,
           custo_medio: parseFloat(form.custo_medio) || 0,
-          created_by: user?.id,
         })
-        .select("id, codigo, descricao, unidade_medida, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id")
+        .select("id, codigo, descricao, unidade_medida")
         .single();
       if (error) throw error;
       toast.success("Item criado com sucesso");
-      onCreated(data);
+      onCreated({
+        ...data,
+        unidade_medida: data.unidade_medida || "UN",
+        natureza_financeira_id: null,
+        centro_custo_id: null,
+        natureza_venda_id: null,
+        centro_custo_venda_id: null,
+      });
       onOpenChange(false);
     } catch (err: any) {
       toast.error(err.message);
@@ -115,45 +105,6 @@ export function QuickItemDialog({
             <Label className="text-xs">Descrição *</Label>
             <Input className="h-8 text-xs" value={form.descricao} onChange={(e) => setForm({ ...form, descricao: e.target.value })} />
           </div>
-
-          {/* COMPRA */}
-          <div className="border rounded-md p-2 space-y-2">
-            <Label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Compra</Label>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Natureza Compra *</Label>
-              <Select value={form.natureza_financeira_id} onValueChange={(v) => setForm({ ...form, natureza_financeira_id: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Centro de Custo Compra *</Label>
-              <Select value={form.centro_custo_id} onValueChange={(v) => setForm({ ...form, centro_custo_id: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          {/* VENDA */}
-          <div className="border rounded-md p-2 space-y-2">
-            <Label className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">Venda</Label>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Natureza Venda *</Label>
-              <Select value={form.natureza_venda_id} onValueChange={(v) => setForm({ ...form, natureza_venda_id: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">Centro de Custo Venda *</Label>
-              <Select value={form.centro_custo_venda_id} onValueChange={(v) => setForm({ ...form, centro_custo_venda_id: v })}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
-                <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-              </Select>
-            </div>
-          </div>
-
           <div className="space-y-1.5">
             <Label className="text-xs">Preço de Custo</Label>
             <Input className="h-8 text-xs" type="number" min="0" step="0.01" value={form.custo_medio} onChange={(e) => setForm({ ...form, custo_medio: e.target.value })} />

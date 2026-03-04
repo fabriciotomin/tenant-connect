@@ -48,27 +48,17 @@ export default function UsersPage() {
   const [selectedRole, setSelectedRole] = useState<string>("usuario");
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
 
-  // Use tenant from context (slug-based) — ensures admin_global operates within selected tenant
   const activeTenantId = tenant?.id || profile?.tenant_id;
 
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["profiles_list", isAdminGlobal, activeTenantId],
     queryFn: async () => {
       if (!activeTenantId) return [];
-      // List users linked to the active tenant via user_tenants
-      const { data: links, error: linkErr } = await supabase
-        .from("user_tenants")
-        .select("user_id")
-        .eq("tenant_id", activeTenantId)
-        .eq("ativo", true);
-      if (linkErr) throw linkErr;
-      if (!links || links.length === 0) return [];
-
-      const userIds = links.map((l) => l.user_id);
+      // List users linked to the active tenant via profiles.tenant_id
       const { data, error } = await supabase
         .from("profiles")
         .select("id, auth_id, nome, email, tenant_id, created_at, empresas:tenant_id(razao_social)")
-        .in("auth_id", userIds)
+        .eq("tenant_id", activeTenantId)
         .order("nome");
       if (error) throw error;
       return data as unknown as ProfileRow[];
@@ -106,8 +96,8 @@ export default function UsersPage() {
       if (error) throw error;
       const map: Record<string, string[]> = {};
       for (const r of data || []) {
-        if (!map[r.user_id]) map[r.user_id] = [];
-        map[r.user_id].push(r.permission_id);
+        if (!map[r.user_id!]) map[r.user_id!] = [];
+        map[r.user_id!].push(r.permission_id!);
       }
       return map;
     },
@@ -127,7 +117,6 @@ export default function UsersPage() {
     mutationFn: async () => {
       if (!editUser) return;
       const authId = editUser.auth_id;
-      // Use the tenant from the URL context (slug), falling back to user's tenant
       const tenantId = editUser.tenant_id || activeTenantId;
 
       if (!tenantId) {
@@ -139,7 +128,7 @@ export default function UsersPage() {
         throw new Error("Não é permitido editar permissões de Admin Global");
       }
 
-      // 1) Update roles: delete non-admin_global roles, then insert selected
+      // Update roles
       const { error: delRoleErr } = await supabase
         .from("user_roles")
         .delete()
@@ -151,12 +140,11 @@ export default function UsersPage() {
         const { error: insRoleErr } = await supabase.from("user_roles").insert({
           user_id: authId,
           role: selectedRole as any,
-          tenant_id: tenantId,
         });
         if (insRoleErr) throw new Error("Erro ao definir papel: " + insRoleErr.message);
       }
 
-      // 2) Update permissions: delete all for user+tenant, then insert selected
+      // Update permissions
       const { error: delPermErr } = await supabase
         .from("user_permissions")
         .delete()
@@ -187,14 +175,13 @@ export default function UsersPage() {
     mutationFn: async (u: ProfileRow) => {
       if (!user) throw new Error("Não autenticado");
       if (!u.auth_id) throw new Error("auth_id do usuário inválido");
-      const tenantId = u.tenant_id || activeTenantId;
-      if (!tenantId) throw new Error("tenant_id não encontrado");
-      const { error } = await supabase.rpc("delete_user_safe", {
-        p_auth_id: u.auth_id,
-        p_tenant_id: tenantId,
-        p_admin_user_id: user.id,
-      });
-      if (error) throw error;
+      // Delete user roles and profile (soft delete approach)
+      const { error: roleErr } = await supabase.from("user_roles").delete().eq("user_id", u.auth_id);
+      if (roleErr) throw roleErr;
+      const { error: permErr } = await supabase.from("user_permissions").delete().eq("user_id", u.auth_id);
+      if (permErr) throw permErr;
+      const { error: profileErr } = await supabase.from("profiles").delete().eq("auth_id", u.auth_id);
+      if (profileErr) throw profileErr;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles_list"] });
@@ -215,7 +202,6 @@ export default function UsersPage() {
     });
   };
 
-  // ===== Select/Deselect all helpers =====
   const permsByModule = allPermissions.reduce<Record<string, Permission[]>>((acc, p) => {
     if (!acc[p.module]) acc[p.module] = [];
     acc[p.module].push(p);
@@ -323,7 +309,6 @@ export default function UsersPage() {
         }
       />
 
-      {/* Edit permissions dialog */}
       <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -391,7 +376,6 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
-      {/* Delete confirmation */}
       <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

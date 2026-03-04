@@ -9,20 +9,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "sonner";
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 interface Supplier {
   id: string;
   razao_social: string;
-  nome_fantasia: string | null;
   cnpj: string | null;
-  email: string | null;
-  telefone: string | null;
   ativo: boolean;
 }
 
@@ -31,12 +23,12 @@ export default function SuppliersPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true });
+  const [form, setForm] = useState({ razao_social: "", cnpj: "", ativo: true });
 
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("*").order("razao_social");
+      const { data, error } = await supabase.from("suppliers").select("id, razao_social, cnpj, ativo").order("razao_social");
       if (error) throw error;
       return data as Supplier[];
     },
@@ -44,12 +36,9 @@ export default function SuppliersPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: any = {
         razao_social: form.razao_social,
-        nome_fantasia: form.nome_fantasia || null,
         cnpj: form.cnpj || null,
-        email: form.email || null,
-        telefone: form.telefone || null,
         ativo: form.ativo,
       };
       if (editingId) {
@@ -70,21 +59,19 @@ export default function SuppliersPage() {
 
   function openEdit(s: Supplier) {
     setEditingId(s.id);
-    setForm({ razao_social: s.razao_social, nome_fantasia: s.nome_fantasia || "", cnpj: s.cnpj || "", email: s.email || "", telefone: s.telefone || "", ativo: s.ativo });
+    setForm({ razao_social: s.razao_social, cnpj: s.cnpj || "", ativo: s.ativo });
     setOpen(true);
   }
 
   function closeDialog() {
     setOpen(false);
     setEditingId(null);
-    setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true });
+    setForm({ razao_social: "", cnpj: "", ativo: true });
   }
 
   const columns = [
     { key: "razao_social", label: "Razão Social" },
-    { key: "nome_fantasia", label: "Nome Fantasia", render: (r: Supplier) => r.nome_fantasia || "—" },
     { key: "cnpj", label: "CNPJ", render: (r: Supplier) => r.cnpj || "—" },
-    { key: "email", label: "E-mail", render: (r: Supplier) => r.email || "—" },
     { key: "ativo", label: "Status", render: (r: Supplier) => <Badge variant={r.ativo ? "default" : "secondary"} className="text-2xs">{r.ativo ? "Ativo" : "Inativo"}</Badge> },
     { key: "acoes", label: "", render: (r: Supplier) => <Button variant="ghost" size="sm" className="h-6 text-2xs" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>Editar</Button> },
   ];
@@ -97,12 +84,10 @@ export default function SuppliersPage() {
       </div>
 
       <DataTable
-        columns={columns}
-        data={suppliers}
-        loading={isLoading}
+        columns={columns} data={suppliers} loading={isLoading}
         searchPlaceholder="Buscar fornecedor..."
         addLabel="Novo Fornecedor"
-        onAdd={() => { setEditingId(null); setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true }); setOpen(true); }}
+        onAdd={() => { setEditingId(null); setForm({ razao_social: "", cnpj: "", ativo: true }); setOpen(true); }}
         filterFn={(r, s) => r.razao_social.toLowerCase().includes(s) || (r.cnpj || "").includes(s)}
       />
 
@@ -117,22 +102,8 @@ export default function SuppliersPage() {
               <Input className="h-8 text-xs" value={form.razao_social} onChange={(e) => setForm({ ...form, razao_social: e.target.value })} required />
             </div>
             <div className="space-y-1.5">
-              <Label className="text-xs">Nome Fantasia</Label>
-              <Input className="h-8 text-xs" value={form.nome_fantasia} onChange={(e) => setForm({ ...form, nome_fantasia: e.target.value })} />
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">CNPJ</Label>
-                <Input className="h-8 text-xs" value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Telefone</Label>
-                <Input className="h-8 text-xs" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-              </div>
-            </div>
-            <div className="space-y-1.5">
-              <Label className="text-xs">E-mail</Label>
-              <Input className="h-8 text-xs" type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} />
+              <Label className="text-xs">CNPJ</Label>
+              <Input className="h-8 text-xs" value={form.cnpj} onChange={(e) => setForm({ ...form, cnpj: e.target.value })} />
             </div>
             <div className="flex items-center gap-2">
               <Switch checked={form.ativo} onCheckedChange={(v) => setForm({ ...form, ativo: v })} />

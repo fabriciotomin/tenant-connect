@@ -10,9 +10,8 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { Plus, ChevronRight, ChevronDown, Pencil, Trash2 } from "lucide-react";
-import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { cn } from "@/lib/utils";
+import { Plus, Pencil, Trash2 } from "lucide-react";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 
 interface FN {
   id: string;
@@ -20,59 +19,8 @@ interface FN {
   descricao: string;
   tipo: string;
   tipo_natureza: string;
-  codigo_pai: string | null;
   ordem: number;
   ativo: boolean;
-}
-
-function buildTree(items: FN[], parentId: string | null = null): (FN & { children: any[] })[] {
-  return items
-    .filter(i => i.codigo_pai === parentId)
-    .sort((a, b) => a.ordem - b.ordem || a.codigo.localeCompare(b.codigo))
-    .map(i => ({ ...i, children: buildTree(items, i.id) }));
-}
-
-function TreeNode({ node, level, onEdit, onDelete }: { node: FN & { children: any[] }; level: number; onEdit: (n: FN) => void; onDelete: (n: FN) => void }) {
-  const [open, setOpen] = useState(true);
-  const hasChildren = node.children.length > 0;
-  const isSintetico = node.tipo === "SINTETICO";
-
-  return (
-    <div>
-      <div
-        className={cn(
-          "flex items-center gap-2 py-1.5 px-2 rounded hover:bg-muted/50 text-xs",
-          !node.ativo && "opacity-50"
-        )}
-        style={{ paddingLeft: `${level * 20 + 8}px` }}
-      >
-        {hasChildren ? (
-          <button onClick={() => setOpen(!open)} className="p-0.5">
-            {open ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          </button>
-        ) : (
-          <span className="w-4" />
-        )}
-        <span className="font-mono text-muted-foreground w-12">{node.codigo}</span>
-        <span className={cn("flex-1", isSintetico && "font-semibold")}>{node.descricao}</span>
-        <Badge variant="outline" className="text-2xs">
-          {node.tipo_natureza === "RECEITA" ? "Receita" : "Despesa"}
-        </Badge>
-        <Badge variant={isSintetico ? "secondary" : "default"} className="text-2xs">
-          {isSintetico ? "Sintética" : "Analítica"}
-        </Badge>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => onEdit(node)}>
-          <Pencil className="h-3 w-3" />
-        </Button>
-        <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => onDelete(node)}>
-          <Trash2 className="h-3 w-3" />
-        </Button>
-      </div>
-      {open && node.children.map((child: any) => (
-        <TreeNode key={child.id} node={child} level={level + 1} onEdit={onEdit} onDelete={onDelete} />
-      ))}
-    </div>
-  );
 }
 
 export default function FinancialNaturesPage() {
@@ -83,7 +31,7 @@ export default function FinancialNaturesPage() {
   const [editing, setEditing] = useState<FN | null>(null);
   const [deleting, setDeleting] = useState<FN | null>(null);
   const [form, setForm] = useState({
-    codigo: "", descricao: "", tipo: "ANALITICO", tipo_natureza: "DESPESA", codigo_pai: "none", ordem: "0", ativo: true,
+    codigo: "", descricao: "", tipo: "ANALITICO", tipo_natureza: "DESPESA", ordem: "0", ativo: true,
   });
 
   const { data: natures = [], isLoading } = useQuery({
@@ -92,19 +40,16 @@ export default function FinancialNaturesPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("financial_natures")
-        .select("id, codigo, descricao, tipo, tipo_natureza, codigo_pai, ordem, ativo")
+        .select("id, codigo, descricao, tipo, tipo_natureza, ordem, ativo")
         .order("ordem");
       if (error) throw error;
       return data as FN[];
     },
   });
 
-  const tree = buildTree(natures);
-  const sinteticas = natures.filter(n => n.tipo === "SINTETICO");
-
   const openNew = () => {
     setEditing(null);
-    setForm({ codigo: "", descricao: "", tipo: "ANALITICO", tipo_natureza: "DESPESA", codigo_pai: "none", ordem: "0", ativo: true });
+    setForm({ codigo: "", descricao: "", tipo: "ANALITICO", tipo_natureza: "DESPESA", ordem: "0", ativo: true });
     setDialog(true);
   };
 
@@ -112,14 +57,14 @@ export default function FinancialNaturesPage() {
     setEditing(n);
     setForm({
       codigo: n.codigo, descricao: n.descricao, tipo: n.tipo, tipo_natureza: n.tipo_natureza,
-      codigo_pai: n.codigo_pai || "none", ordem: String(n.ordem), ativo: n.ativo,
+      ordem: String(n.ordem), ativo: n.ativo,
     });
     setDialog(true);
   };
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("delete_financial_nature_safe" as any, { p_id: id });
+      const { error } = await supabase.from("financial_natures").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -137,17 +82,15 @@ export default function FinancialNaturesPage() {
         descricao: form.descricao,
         tipo: form.tipo as any,
         tipo_natureza: form.tipo_natureza,
-        codigo_pai: form.codigo_pai === "none" ? null : (form.codigo_pai || null),
         ordem: Number(form.ordem) || 0,
         ativo: form.ativo,
-        updated_by: user?.id,
       };
       if (editing) {
         const { error } = await supabase.from("financial_natures").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
         payload.codigo = form.codigo;
-        const { error } = await supabase.from("financial_natures").insert({ ...payload, created_by: user?.id } as any);
+        const { error } = await supabase.from("financial_natures").insert(payload);
         if (error) throw error;
       }
     },
@@ -159,12 +102,28 @@ export default function FinancialNaturesPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const columns = [
+    { key: "codigo", label: "Código" },
+    { key: "descricao", label: "Descrição" },
+    { key: "tipo_natureza", label: "Tipo", render: (r: FN) => <Badge variant="outline" className="text-2xs">{r.tipo_natureza === "RECEITA" ? "Receita" : "Despesa"}</Badge> },
+    { key: "tipo", label: "Classificação", render: (r: FN) => <Badge variant={r.tipo === "SINTETICO" ? "secondary" : "default"} className="text-2xs">{r.tipo === "SINTETICO" ? "Sintética" : "Analítica"}</Badge> },
+    { key: "ativo", label: "Status", render: (r: FN) => <Badge className={`text-2xs ${r.ativo ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}>{r.ativo ? "Ativo" : "Inativo"}</Badge> },
+    {
+      key: "acoes", label: "", render: (r: FN) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0" onClick={() => openEdit(r)}><Pencil className="h-3 w-3" /></Button>
+          <Button variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive hover:text-destructive" onClick={() => setDeleting(r)}><Trash2 className="h-3 w-3" /></Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-lg font-semibold">Naturezas Financeiras</h1>
-          <p className="text-xs text-muted-foreground">Estrutura hierárquica para DRE e classificação financeira</p>
+          <p className="text-xs text-muted-foreground">Classificação financeira para DRE</p>
         </div>
         <Button size="sm" onClick={openNew}><Plus className="h-4 w-4 mr-1" />Nova Natureza</Button>
       </div>
@@ -172,11 +131,28 @@ export default function FinancialNaturesPage() {
       {isLoading ? (
         <p className="text-xs text-muted-foreground">Carregando...</p>
       ) : (
-        <div className="border rounded-lg p-2">
-          {tree.length === 0 ? (
+        <div className="border rounded-lg">
+          {natures.length === 0 ? (
             <p className="text-xs text-muted-foreground text-center py-4">Nenhuma natureza cadastrada</p>
           ) : (
-            tree.map(node => <TreeNode key={node.id} node={node} level={0} onEdit={openEdit} onDelete={(n) => setDeleting(n)} />)
+            <table className="w-full text-xs">
+              <thead className="bg-muted/50">
+                <tr>
+                  {columns.map(c => <th key={c.key} className="text-left p-2">{c.label}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {natures.map(n => (
+                  <tr key={n.id} className="border-t hover:bg-muted/30">
+                    {columns.map(c => (
+                      <td key={c.key} className="p-2">
+                        {c.render ? c.render(n) : (n as any)[c.key]}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           )}
         </div>
       )}
@@ -207,8 +183,8 @@ export default function FinancialNaturesPage() {
                 <Select value={form.tipo} onValueChange={v => setForm(p => ({ ...p, tipo: v }))}>
                   <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="SINTETICO" className="text-xs">Sintética (agrupamento)</SelectItem>
-                    <SelectItem value="ANALITICO" className="text-xs">Analítica (lançamento)</SelectItem>
+                    <SelectItem value="SINTETICO" className="text-xs">Sintética</SelectItem>
+                    <SelectItem value="ANALITICO" className="text-xs">Analítica</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
@@ -222,18 +198,6 @@ export default function FinancialNaturesPage() {
                   </SelectContent>
                 </Select>
               </div>
-            </div>
-            <div>
-              <Label className="text-xs">Natureza Pai</Label>
-              <Select value={form.codigo_pai} onValueChange={v => setForm(p => ({ ...p, codigo_pai: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma (raiz)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs">Nenhuma (raiz)</SelectItem>
-                  {sinteticas.filter(s => s.id !== editing?.id).map(s => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">{s.codigo} - {s.descricao}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>
@@ -250,18 +214,12 @@ export default function FinancialNaturesPage() {
           <AlertDialogHeader>
             <AlertDialogTitle className="text-sm">Excluir natureza financeira?</AlertDialogTitle>
             <AlertDialogDescription className="text-xs">
-              "{deleting?.codigo} - {deleting?.descricao}" será excluída permanentemente. Só é possível excluir se não possuir filhos nem vínculos.
+              "{deleting?.codigo} - {deleting?.descricao}" será excluída permanentemente.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel className="text-xs h-8">Cancelar</AlertDialogCancel>
-            <AlertDialogAction
-              className="text-xs h-8 bg-destructive text-destructive-foreground hover:bg-destructive/90"
-              onClick={() => {
-                if (deleting) deleteMut.mutate(deleting.id);
-                setDeleting(null);
-              }}
-            >
+            <AlertDialogAction className="text-xs h-8 bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => { if (deleting) deleteMut.mutate(deleting.id); setDeleting(null); }}>
               Excluir
             </AlertDialogAction>
           </AlertDialogFooter>

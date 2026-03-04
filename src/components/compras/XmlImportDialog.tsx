@@ -85,19 +85,32 @@ export function XmlImportDialog({
   const [quickItemOpen, setQuickItemOpen] = useState(false);
   const [quickItemIndex, setQuickItemIndex] = useState(-1);
 
-  // Purchase orders query
+  // Purchase orders query - use direct table query instead of RPC
   const { data: purchaseOrders = [] } = useQuery({
     queryKey: ["purchase_orders_for_xml", tenant?.id],
     enabled: !!tenant?.id && open,
     queryFn: async () => {
       const { data, error } = await supabase
-        .rpc("get_purchase_orders_with_pending_balance", { p_tenant_id: tenant!.id });
+        .from("purchase_orders")
+        .select("id, numero_sequencial, status, fornecedor_id, condicao_pagamento_id, forma_pagamento_id, valor_frete, suppliers(razao_social)")
+        .eq("tenant_id", tenant!.id)
+        .eq("status", "ABERTO")
+        .order("numero_sequencial", { ascending: false });
       if (error) throw error;
-      return (data || []) as { id: string; numero_sequencial: number; status: string; fornecedor_id: string; fornecedor_nome: string; condicao_pagamento_id: string | null; forma_pagamento_id: string | null; valor_frete: number }[];
+      return (data || []).map((po: any) => ({
+        id: po.id,
+        numero_sequencial: po.numero_sequencial,
+        status: po.status,
+        fornecedor_id: po.fornecedor_id,
+        fornecedor_nome: po.suppliers?.razao_social || "",
+        condicao_pagamento_id: po.condicao_pagamento_id,
+        forma_pagamento_id: po.forma_pagamento_id,
+        valor_frete: po.valor_frete,
+      }));
     },
   });
 
-  // PO items query - only when PO is selected
+  // PO items query
   const { data: poItems = [] } = useQuery({
     queryKey: ["po_items_for_xml", tenant?.id, form.purchase_order_id],
     enabled: !!tenant?.id && !!form.purchase_order_id,
@@ -112,22 +125,6 @@ export function XmlImportDialog({
     },
   });
 
-  // Supplier item mappings query
-  const { data: supplierMappings = [] } = useQuery({
-    queryKey: ["supplier_item_mappings", tenant?.id, form.fornecedor_id],
-    enabled: !!tenant?.id && !!form.fornecedor_id && open,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("supplier_item_mappings")
-        .select("supplier_item_description, supplier_item_code, item_id")
-        .eq("tenant_id", tenant!.id)
-        .eq("supplier_id", form.fornecedor_id);
-      if (error) throw error;
-      return data || [];
-    },
-  });
-
-  // Items available for selection based on PO or all items
   const selectableItems = useMemo(() => {
     if (form.purchase_order_id) {
       return poItems
@@ -143,7 +140,6 @@ export function XmlImportDialog({
     return allItems;
   }, [form.purchase_order_id, poItems, allItems]);
 
-  // Initialize form when xmlData changes
   const initializeFromXml = useCallback(() => {
     if (!xmlData) return;
 
@@ -178,51 +174,11 @@ export function XmlImportDialog({
     setLocalItems([]);
   }, [xmlData, suppliers]);
 
-  // Run init when dialog opens
   useEffect(() => {
     if (open && xmlData) {
       initializeFromXml();
     }
   }, [open, xmlData]);
-
-  // Apply supplier mappings when supplier changes or mappings load
-  useEffect(() => {
-    if (!form.fornecedor_id || supplierMappings.length === 0 || xmlItemMappings.length === 0) return;
-
-    const allowedPoItemIds = new Set(poItems.map((pi) => pi.item_id));
-
-    setXmlItemMappings(prev => prev.map(mapping => {
-      if (mapping.item_id) return mapping; // Already mapped, skip
-
-      const xmlCode = normalizeMatchText(mapping.xml_codigo);
-      const xmlDescription = normalizeMatchText(mapping.xml_descricao);
-
-      const foundByCode = xmlCode
-        ? supplierMappings.find(sm => normalizeMatchText(sm.supplier_item_code) === xmlCode)
-        : null;
-
-      const foundByDescription = supplierMappings.find(
-        sm => normalizeMatchText(sm.supplier_item_description) === xmlDescription
-      );
-
-      const found = foundByCode || foundByDescription;
-
-      if (found) {
-        if (form.purchase_order_id && !allowedPoItemIds.has(found.item_id)) {
-          return mapping;
-        }
-
-        const item = allItems.find(i => i.id === found.item_id);
-        return {
-          ...mapping,
-          item_id: found.item_id,
-          natureza_financeira_id: item?.natureza_financeira_id || "",
-          centro_custo_id: item?.centro_custo_id || "",
-        };
-      }
-      return mapping;
-    }));
-  }, [form.fornecedor_id, form.purchase_order_id, supplierMappings, xmlItemMappings.length, allItems, poItems]);
 
   async function handlePOChange(poId: string) {
     const effectiveId = poId === "none" ? "" : poId;
@@ -263,11 +219,9 @@ export function XmlImportDialog({
       forma_pagamento_id: po.forma_pagamento_id || "",
     }));
 
-    // Clear item mappings when PO changes - user needs to re-link
     setXmlItemMappings(prev => prev.map(m => ({ ...m, item_id: "", natureza_financeira_id: "", centro_custo_id: "" })));
   }
 
-  // Handle item selection - auto-fill natureza/centro
   function handleItemChange(idx: number, itemId: string) {
     if (hasPO && !selectableItems.some(i => i.id === itemId)) {
       toast.error("Somente itens do Pedido de Compra vinculado podem ser selecionados");
@@ -312,7 +266,6 @@ export function XmlImportDialog({
       return;
     }
 
-    // Collect new mappings to save
     const newMappings = xmlItemMappings
       .filter(m => m.item_id && (m.xml_descricao || m.xml_codigo))
       .map(m => ({
@@ -363,7 +316,6 @@ export function XmlImportDialog({
 
             {/* Header fields */}
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              {/* Fornecedor */}
               <div className="space-y-1.5">
                 <Label className="text-xs">Fornecedor *</Label>
                 <div className="flex gap-1">
@@ -379,7 +331,6 @@ export function XmlImportDialog({
                 </div>
               </div>
 
-              {/* Pedido de Compra */}
               <div className="space-y-1.5">
                 <Label className="text-xs">Pedido de Compra</Label>
                 <Select value={form.purchase_order_id} onValueChange={handlePOChange}>
@@ -395,7 +346,6 @@ export function XmlImportDialog({
                 </Select>
               </div>
 
-              {/* Forma de Pagamento */}
               <div className="space-y-1.5">
                 <Label className="text-xs">Forma de Pagamento *</Label>
                 <Select value={form.forma_pagamento_id} onValueChange={(v) => setForm({ ...form, forma_pagamento_id: v })}>
@@ -404,7 +354,6 @@ export function XmlImportDialog({
                 </Select>
               </div>
 
-              {/* Condição de Pagamento */}
               <div className="space-y-1.5">
                 <Label className="text-xs">Cond. Pagamento</Label>
                 <Select value={form.condicao_pagamento_id} onValueChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}>
@@ -426,142 +375,103 @@ export function XmlImportDialog({
             <div className="space-y-2">
               <Label className="text-xs font-semibold">Mapeamento de Itens (XML → Sistema)</Label>
               <div className="border rounded-md overflow-hidden">
-                {/* Header */}
-                <div className="grid grid-cols-[1fr_1fr_70px_90px_70px_100px_100px_32px] gap-1 px-2 py-1.5 bg-muted/50 text-2xs font-medium text-muted-foreground">
-                  <span>Produto XML</span>
-                  <span>Item Sistema</span>
-                  <span className="text-right">Qtd</span>
-                  <span className="text-right">Vlr Unit</span>
-                  <span className="text-right">Impostos</span>
-                  <span>Natureza</span>
-                  <span>Centro Custo</span>
-                  <span></span>
+                <div className="grid grid-cols-12 gap-1 px-2 py-1 bg-muted text-2xs font-medium">
+                  <div className="col-span-3">Item XML</div>
+                  <div className="col-span-3">Item Sistema</div>
+                  <div className="col-span-1">Qtd</div>
+                  <div className="col-span-1">Vlr Unit</div>
+                  <div className="col-span-1">Impostos</div>
+                  <div className="col-span-1">Natureza</div>
+                  <div className="col-span-1">CC</div>
+                  <div className="col-span-1"></div>
                 </div>
-
-                {/* Items */}
-                <div className="max-h-[40vh] overflow-y-auto">
-                  {(xmlData.itens || []).map((xi: any, idx: number) => {
-                    const mapping = xmlItemMappings[idx];
-                    if (!mapping) return null;
-
-                    return (
-                      <div key={idx} className="grid grid-cols-[1fr_1fr_70px_90px_70px_100px_100px_32px] gap-1 px-2 py-1.5 items-center border-t text-2xs">
-                        {/* XML product info */}
-                        <span className="truncate" title={`${xi.cProd} - ${xi.xProd} | NCM: ${xi.NCM} | CFOP: ${xi.CFOP}`}>
-                          <span className="font-mono">{xi.cProd}</span> {xi.xProd}
-                        </span>
-
-                        {/* Item select - filtered by PO if linked */}
-                        <div className="flex gap-0.5">
-                          <Select value={mapping.item_id || ""} onValueChange={(v) => handleItemChange(idx, v)}>
-                            <SelectTrigger className="h-6 text-2xs flex-1"><SelectValue placeholder="Vincular item..." /></SelectTrigger>
-                            <SelectContent>{selectableItems.map(i => <SelectItem key={i.id} value={i.id} className="text-2xs">{i.codigo} - {i.descricao}</SelectItem>)}</SelectContent>
-                          </Select>
-                          {!mapping.item_id && !hasPO && (
-                            <Button type="button" variant="ghost" size="icon" className="h-6 w-6 shrink-0" title="Cadastrar item" onClick={() => { setQuickItemIndex(idx); setQuickItemOpen(true); }}>
-                              <Plus className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-
-                        {/* Quantity */}
-                        <Input className="h-6 text-2xs text-right p-1" type="number" min="0.001" step="0.01"
-                          value={mapping.quantidade}
-                          onChange={(e) => updateMapping(idx, "quantidade", e.target.value)}
-                        />
-
-                        {/* Unit price */}
-                        <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01"
-                          value={mapping.valor_unitario}
-                          onChange={(e) => updateMapping(idx, "valor_unitario", e.target.value)}
-                        />
-
-                        {/* Taxes */}
-                        <Input className="h-6 text-2xs text-right p-1" type="number" value={mapping.impostos} readOnly />
-
-                        {/* Natureza Financeira */}
-                        <Select value={mapping.natureza_financeira_id || ""} onValueChange={(v) => updateMapping(idx, "natureza_financeira_id", v)}>
-                          <SelectTrigger className="h-6 text-2xs"><SelectValue placeholder="Natureza" /></SelectTrigger>
-                          <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                        </Select>
-
-                        {/* Centro de Custo */}
-                        <Select value={mapping.centro_custo_id || ""} onValueChange={(v) => updateMapping(idx, "centro_custo_id", v)}>
-                          <SelectTrigger className="h-6 text-2xs"><SelectValue placeholder="C.Custo" /></SelectTrigger>
-                          <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                        </Select>
-
-                        {/* Status indicator */}
-                        <span className={`text-center ${mapping.item_id ? "text-green-600" : "text-muted-foreground"}`}>
-                          {mapping.item_id ? "✓" : "—"}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-
-                {/* Footer */}
-                <div className="grid grid-cols-[1fr_1fr_70px_90px_70px_100px_100px_32px] gap-1 px-2 py-1.5 border-t bg-muted/30 text-2xs font-semibold">
-                  <span>{xmlData.itens?.length || 0} item(ns) XML</span>
-                  <span>{xmlItemMappings.filter(m => m.item_id).length} vinculado(s)</span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span></span>
-                  <span className="text-right">R$ {calcTotal.toFixed(2)}</span>
-                  <span></span>
-                </div>
+                {xmlItemMappings.map((mapping, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-1 px-2 py-1 border-t items-center">
+                    <div className="col-span-3">
+                      <p className="text-2xs truncate" title={mapping.xml_descricao}>
+                        {mapping.xml_codigo && <span className="font-mono text-muted-foreground">[{mapping.xml_codigo}] </span>}
+                        {mapping.xml_descricao}
+                      </p>
+                    </div>
+                    <div className="col-span-3">
+                      <Select value={mapping.item_id} onValueChange={(v) => handleItemChange(idx, v)}>
+                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                        <SelectContent>
+                          {selectableItems.map(i => (
+                            <SelectItem key={i.id} value={i.id} className="text-2xs">{i.codigo} - {i.descricao}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-1">
+                      <Input className="h-7 text-2xs" type="number" step="0.01" value={mapping.quantidade} onChange={(e) => updateMapping(idx, "quantidade", e.target.value)} />
+                    </div>
+                    <div className="col-span-1">
+                      <Input className="h-7 text-2xs" type="number" step="0.01" value={mapping.valor_unitario} onChange={(e) => updateMapping(idx, "valor_unitario", e.target.value)} />
+                    </div>
+                    <div className="col-span-1">
+                      <Input className="h-7 text-2xs" type="number" step="0.01" value={mapping.impostos} onChange={(e) => updateMapping(idx, "impostos", e.target.value)} />
+                    </div>
+                    <div className="col-span-1">
+                      <Select value={mapping.natureza_financeira_id} onValueChange={(v) => updateMapping(idx, "natureza_financeira_id", v)}>
+                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-1">
+                      <Select value={mapping.centro_custo_id} onValueChange={(v) => updateMapping(idx, "centro_custo_id", v)}>
+                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
+                        <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo}</SelectItem>)}</SelectContent>
+                      </Select>
+                    </div>
+                    <div className="col-span-1">
+                      {!mapping.item_id && (
+                        <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0" title="Cadastrar item"
+                          onClick={() => { setQuickItemIndex(idx); setQuickItemOpen(true); }}>
+                          <Plus className="h-3 w-3" />
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
               </div>
             </div>
 
-            {/* Actions */}
-            <div className="flex justify-end gap-2 pt-2">
-              <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
-              <Button
-                size="sm"
-                onClick={handleSubmit}
-                disabled={submitting || !form.fornecedor_id || !form.forma_pagamento_id || xmlItemMappings.filter(m => m.item_id).length === 0}
-              >
-                {submitting ? "Salvando..." : "Criar Documento"}
-              </Button>
+            <div className="flex items-center justify-between pt-2 border-t">
+              <p className="text-xs font-medium">Total mapeado: R$ {calcTotal.toFixed(2)}</p>
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>Cancelar</Button>
+                <Button size="sm" onClick={handleSubmit} disabled={submitting}>
+                  {submitting ? "Importando..." : "Importar NF-e"}
+                </Button>
+              </div>
             </div>
           </div>
         </DialogContent>
       </Dialog>
 
-      {/* Quick Supplier */}
       <QuickSupplierDialog
         open={quickSupplierOpen}
         onOpenChange={setQuickSupplierOpen}
-        defaultCnpj={(xmlData.emitente?.cnpj || "").replace(/\D/g, "")}
-        defaultRazaoSocial={xmlData.emitente?.razao_social || ""}
-        defaultNomeFantasia={xmlData.emitente?.nome_fantasia || ""}
-        onCreated={(supplier) => {
-          setLocalSuppliers(prev => [...prev, supplier]);
-          setForm(prev => ({ ...prev, fornecedor_id: supplier.id }));
-          queryClient.invalidateQueries({ queryKey: ["suppliers_select_active"] });
+        defaultCnpj={xmlData?.emitente?.cnpj}
+        defaultRazaoSocial={xmlData?.emitente?.razao_social}
+        onCreated={(s) => {
+          setLocalSuppliers(prev => [...prev, { id: s.id, razao_social: s.razao_social, cnpj: s.cnpj }]);
+          setForm(prev => ({ ...prev, fornecedor_id: s.id }));
         }}
       />
 
-      {/* Quick Item */}
       <QuickItemDialog
         open={quickItemOpen}
         onOpenChange={setQuickItemOpen}
-        defaultDescricao={quickItemIndex >= 0 ? xmlData.itens?.[quickItemIndex]?.xProd || "" : ""}
-        defaultCodigo={quickItemIndex >= 0 ? xmlData.itens?.[quickItemIndex]?.cProd || "" : ""}
+        defaultDescricao={quickItemIndex >= 0 ? xmlItemMappings[quickItemIndex]?.xml_descricao : ""}
+        defaultCodigo={quickItemIndex >= 0 ? xmlItemMappings[quickItemIndex]?.xml_codigo : ""}
         onCreated={(item) => {
-          setLocalItems(prev => [...prev, item]);
+          setLocalItems(prev => [...prev, { id: item.id, codigo: item.codigo, descricao: item.descricao, unidade_medida: item.unidade_medida, natureza_financeira_id: item.natureza_financeira_id, centro_custo_id: item.centro_custo_id }]);
           if (quickItemIndex >= 0) {
-            const updated = [...xmlItemMappings];
-            updated[quickItemIndex] = {
-              ...updated[quickItemIndex],
-              item_id: item.id,
-              natureza_financeira_id: item.natureza_financeira_id || "",
-              centro_custo_id: item.centro_custo_id || "",
-            };
-            setXmlItemMappings(updated);
+            handleItemChange(quickItemIndex, item.id);
           }
-          queryClient.invalidateQueries({ queryKey: ["items_select_active"] });
+          setQuickItemIndex(-1);
         }}
       />
     </>

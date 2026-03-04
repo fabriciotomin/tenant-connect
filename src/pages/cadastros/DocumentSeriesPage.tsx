@@ -75,7 +75,7 @@ export default function DocumentSeriesPage() {
           const { count } = await supabase
             .from("outbound_documents")
             .select("id", { count: "exact", head: true })
-            .eq("serie_id", s.id);
+            .eq("serie", s.serie);
           return { ...s, doc_count: count || 0 };
         })
       );
