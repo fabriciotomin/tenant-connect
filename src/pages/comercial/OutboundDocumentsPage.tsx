@@ -44,20 +44,15 @@ const statusColors: Record<string, string> = {
 
 interface OutboundDoc {
   id: string;
-  numero: string | null;
-  serie: string | null;
   numero_nf: number | null;
+  serie: string | null;
   pedido_venda_id: string | null;
   valor_total: number;
   status: string;
   data_emissao: string;
   created_at: string;
   cliente_id: string;
-  representante_id: string | null;
-  condicao_pagamento_id: string | null;
   customers?: { razao_social: string } | null;
-  representantes?: { nome: string } | null;
-  document_series?: { serie: string; nome: string } | null;
   sales_order_numero?: number | null;
 }
 
@@ -66,7 +61,6 @@ interface DocItem {
   item_id: string;
   quantidade: number;
   valor_unitario: number;
-  impostos: number;
   items?: { codigo: string; descricao: string; saldo_estoque: number } | null;
 }
 
@@ -84,10 +78,6 @@ export default function OutboundDocumentsPage() {
 
   const [form, setForm] = useState({
     cliente_id: "",
-    representante_id: "",
-    condicao_pagamento_id: "",
-    numero: "",
-    serie: "",
     data_emissao: new Date().toISOString().split("T")[0],
   });
 
@@ -101,11 +91,10 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("outbound_documents")
-        .select("*, customers(razao_social), representantes(nome), document_series(serie, nome)")
+        .select("*, customers(razao_social)")
         .order("created_at", { ascending: false });
       if (error) throw error;
       
-      // Fetch sales order numbers for linked documents
       const soIds = (data || []).map(d => d.pedido_venda_id).filter(Boolean) as string[];
       let soMap: Record<string, number> = {};
       if (soIds.length > 0) {
@@ -119,9 +108,7 @@ export default function OutboundDocumentsPage() {
       return (data || []).map(d => ({
         ...d,
         sales_order_numero: d.pedido_venda_id ? soMap[d.pedido_venda_id] || null : null,
-      })) as (OutboundDoc & { sales_order_numero: number | null })[];
-      if (error) throw error;
-      return data as OutboundDoc[];
+      })) as any;
     },
   });
 
@@ -167,7 +154,7 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id")
+        .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda")
         .eq("ativo", true)
         .order("codigo");
       if (error) throw error;
@@ -181,10 +168,10 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("outbound_document_items")
-        .select("*, items(codigo, descricao, saldo_estoque)")
+        .select("id, item_id, quantidade, valor_unitario, outbound_document_id, items(codigo, descricao, saldo_estoque)")
         .eq("outbound_document_id", selectedDoc!.id);
       if (error) throw error;
-      return data as DocItem[];
+      return data as any as DocItem[];
     },
   });
 
@@ -208,14 +195,9 @@ export default function OutboundDocumentsPage() {
         .insert({
           tenant_id: tenant.id,
           cliente_id: form.cliente_id,
-          representante_id: form.representante_id || null,
-          condicao_pagamento_id: form.condicao_pagamento_id || null,
-          numero: form.numero || null,
-          serie: form.serie || null,
           data_emissao: form.data_emissao,
           valor_total: valorTotal,
-          created_by: user?.id,
-        })
+        } as any)
         .select("id")
         .single();
       if (docError) throw docError;
@@ -225,9 +207,6 @@ export default function OutboundDocumentsPage() {
         item_id: i.item_id,
         quantidade: parseFloat(i.quantidade),
         valor_unitario: parseFloat(i.valor_unitario),
-        impostos: parseFloat(i.impostos || "0"),
-        natureza_financeira_id: i.natureza_financeira_id || null,
-        centro_custo_id: i.centro_custo_id || null,
       }));
 
       const { error: itemsError } = await supabase
@@ -248,9 +227,8 @@ export default function OutboundDocumentsPage() {
 
   const confirmMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase.rpc("confirmar_documento_saida", {
-        p_document_id: docId,
-        p_user_id: user?.id,
+      const { error } = await supabase.rpc("process_outbound_document", {
+        _doc_id: docId,
       });
       if (error) throw error;
     },
@@ -268,7 +246,7 @@ export default function OutboundDocumentsPage() {
     mutationFn: async (docId: string) => {
       const { error } = await supabase
         .from("outbound_documents")
-        .update({ status: "CANCELADO" as any, updated_by: user?.id })
+        .update({ status: "CANCELADO" as any })
         .eq("id", docId)
         .eq("status", "PENDENTE" as any);
       if (error) throw error;
@@ -283,10 +261,11 @@ export default function OutboundDocumentsPage() {
 
   const cancelConfirmadoMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase.rpc("cancelar_documento_saida", {
-        p_document_id: docId,
-        p_user_id: user?.id,
-      });
+      // For confirmed docs, just update status - no estorno RPC available
+      const { error } = await supabase
+        .from("outbound_documents")
+        .update({ status: "CANCELADO" as any })
+        .eq("id", docId);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -314,13 +293,13 @@ export default function OutboundDocumentsPage() {
       if (error) throw error;
 
       // Recalculate total
-      const { data: allItems } = await supabase
+      const { data: allItemsData } = await supabase
         .from("outbound_document_items")
-        .select("quantidade, valor_unitario, impostos")
+        .select("quantidade, valor_unitario")
         .eq("outbound_document_id", docId);
 
-      const newTotal = (allItems || []).reduce(
-        (sum, i) => sum + i.quantidade * i.valor_unitario + i.impostos,
+      const newTotal = (allItemsData || []).reduce(
+        (sum, i: any) => sum + i.quantidade * i.valor_unitario,
         0
       );
 
@@ -345,13 +324,13 @@ export default function OutboundDocumentsPage() {
         .eq("id", itemId);
       if (error) throw error;
 
-      const { data: allItems } = await supabase
+      const { data: allItemsData2 } = await supabase
         .from("outbound_document_items")
-        .select("quantidade, valor_unitario, impostos")
+        .select("quantidade, valor_unitario")
         .eq("outbound_document_id", docId);
 
-      const newTotal = (allItems || []).reduce(
-        (sum, i) => sum + i.quantidade * i.valor_unitario + i.impostos,
+      const newTotal = (allItemsData2 || []).reduce(
+        (sum, i: any) => sum + i.quantidade * i.valor_unitario,
         0
       );
 
@@ -371,10 +350,6 @@ export default function OutboundDocumentsPage() {
   function resetForm() {
     setForm({
       cliente_id: "",
-      representante_id: "",
-      condicao_pagamento_id: "",
-      numero: "",
-      serie: "",
       data_emissao: new Date().toISOString().split("T")[0],
     });
     setNewItems([]);
@@ -398,8 +373,7 @@ export default function OutboundDocumentsPage() {
     newItems.reduce(
       (sum, i) =>
         sum +
-        parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0") +
-        parseFloat(i.impostos || "0"),
+        parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0"),
       0
     );
 

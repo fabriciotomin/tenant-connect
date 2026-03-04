@@ -27,7 +27,6 @@ export function useFinancialClassification() {
       const { data, error } = await supabase
         .from("cost_centers")
         .select("id, codigo, descricao")
-        .eq("tipo", "ANALITICO")
         .eq("ativo", true)
         .order("codigo");
       if (error) throw error;

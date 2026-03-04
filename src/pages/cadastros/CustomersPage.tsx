@@ -16,8 +16,6 @@ interface Customer {
   razao_social: string;
   nome_fantasia: string | null;
   cnpj: string | null;
-  cidade: string | null;
-  estado: string | null;
   telefone: string | null;
   email: string | null;
   ativo: boolean;
@@ -28,12 +26,12 @@ export default function CustomersPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", cidade: "", estado: "", cep: "", endereco: "", ativo: true });
+  const [form, setForm] = useState({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true });
 
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("*").order("razao_social");
+      const { data, error } = await supabase.from("customers").select("id, razao_social, nome_fantasia, cnpj, telefone, email, ativo").order("razao_social");
       if (error) throw error;
       return data as Customer[];
     },
@@ -41,16 +39,12 @@ export default function CustomersPage() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: any = {
         razao_social: form.razao_social,
         nome_fantasia: form.nome_fantasia || null,
         cnpj: form.cnpj || null,
         email: form.email || null,
         telefone: form.telefone || null,
-        cidade: form.cidade || null,
-        estado: form.estado || null,
-        cep: form.cep || null,
-        endereco: form.endereco || null,
         ativo: form.ativo,
       };
       if (editingId) {
@@ -71,21 +65,20 @@ export default function CustomersPage() {
 
   function openEdit(c: Customer) {
     setEditingId(c.id);
-    setForm({ razao_social: c.razao_social, nome_fantasia: c.nome_fantasia || "", cnpj: c.cnpj || "", email: c.email || "", telefone: c.telefone || "", cidade: c.cidade || "", estado: c.estado || "", cep: (c as any).cep || "", endereco: (c as any).endereco || "", ativo: c.ativo });
+    setForm({ razao_social: c.razao_social, nome_fantasia: c.nome_fantasia || "", cnpj: c.cnpj || "", email: c.email || "", telefone: c.telefone || "", ativo: c.ativo });
     setOpen(true);
   }
 
   function closeDialog() {
     setOpen(false);
     setEditingId(null);
-    setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", cidade: "", estado: "", cep: "", endereco: "", ativo: true });
+    setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true });
   }
 
   const columns = [
     { key: "razao_social", label: "Razão Social" },
     { key: "nome_fantasia", label: "Nome Fantasia", render: (r: Customer) => r.nome_fantasia || "—" },
     { key: "cnpj", label: "CNPJ", render: (r: Customer) => r.cnpj || "—" },
-    { key: "cidade", label: "Cidade", render: (r: Customer) => r.cidade ? `${r.cidade}/${r.estado || ""}` : "—" },
     { key: "ativo", label: "Status", render: (r: Customer) => <Badge variant={r.ativo ? "default" : "secondary"} className="text-2xs">{r.ativo ? "Ativo" : "Inativo"}</Badge> },
     { key: "acoes", label: "", render: (r: Customer) => <Button variant="ghost" size="sm" className="h-6 text-2xs" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>Editar</Button> },
   ];
@@ -98,12 +91,10 @@ export default function CustomersPage() {
       </div>
 
       <DataTable
-        columns={columns}
-        data={customers}
-        loading={isLoading}
+        columns={columns} data={customers} loading={isLoading}
         searchPlaceholder="Buscar cliente..."
         addLabel="Novo Cliente"
-        onAdd={() => { setEditingId(null); setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", cidade: "", estado: "", cep: "", endereco: "", ativo: true }); setOpen(true); }}
+        onAdd={() => { setEditingId(null); setForm({ razao_social: "", nome_fantasia: "", cnpj: "", email: "", telefone: "", ativo: true }); setOpen(true); }}
         filterFn={(r, s) => r.razao_social.toLowerCase().includes(s) || (r.cnpj || "").includes(s)}
       />
 
@@ -133,22 +124,6 @@ export default function CustomersPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Telefone</Label>
                 <Input className="h-8 text-xs" value={form.telefone} onChange={(e) => setForm({ ...form, telefone: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">CEP</Label>
-                <Input className="h-8 text-xs" value={form.cep} onChange={(e) => setForm({ ...form, cep: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Endereço</Label>
-                <Input className="h-8 text-xs" value={form.endereco} onChange={(e) => setForm({ ...form, endereco: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Cidade</Label>
-                <Input className="h-8 text-xs" value={form.cidade} onChange={(e) => setForm({ ...form, cidade: e.target.value })} />
-              </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Estado</Label>
-                <Input className="h-8 text-xs" value={form.estado} onChange={(e) => setForm({ ...form, estado: e.target.value })} maxLength={2} />
               </div>
             </div>
             <div className="flex items-center gap-2">

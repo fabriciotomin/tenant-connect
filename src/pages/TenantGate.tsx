@@ -2,34 +2,14 @@ import { Navigate } from "react-router-dom";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { useQuery } from "@tanstack/react-query";
-import { supabase } from "@/integrations/supabase/client";
 import { Building2, AlertTriangle } from "lucide-react";
 
-/**
- * TenantGate wraps authenticated routes inside /t/:slug.
- * - Validates tenant exists and is active.
- * - Validates user has an active link in user_tenants (or is admin_global).
- */
 export default function TenantGate({ children }: { children: React.ReactNode }) {
   const { tenant, tenantLoading, tenantError, slug } = useTenant();
   const { user, loading: authLoading } = useAuth();
-  const { isAdminGlobal, loading: profileLoading } = useUserProfile();
+  const { isAdminGlobal, profile, loading: profileLoading } = useUserProfile();
 
-  const { data: hasLink, isLoading: linkLoading } = useQuery({
-    queryKey: ["user_tenant_link", user?.id, tenant?.id],
-    queryFn: async () => {
-      if (!user || !tenant) return false;
-      const { data } = await supabase.rpc("has_user_tenant_link", {
-        _user_id: user.id,
-        _tenant_id: tenant.id,
-      });
-      return !!data;
-    },
-    enabled: !!user && !!tenant && !isAdminGlobal,
-  });
-
-  if (authLoading || tenantLoading || profileLoading || linkLoading) {
+  if (authLoading || tenantLoading || profileLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-sm text-muted-foreground">Carregando...</div>
@@ -55,8 +35,8 @@ export default function TenantGate({ children }: { children: React.ReactNode }) 
     );
   }
 
-  // Validate user belongs to this tenant (or is admin_global)
-  if (!isAdminGlobal && !hasLink) {
+  // Validate user belongs to this tenant (via profile.tenant_id) or is admin_global
+  if (!isAdminGlobal && profile?.tenant_id !== tenant.id) {
     return (
       <div className="min-h-screen flex items-center justify-center p-4">
         <div className="text-center space-y-3">

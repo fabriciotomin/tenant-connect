@@ -11,7 +11,6 @@ interface UserProfile {
 
 interface UserRole {
   role: "admin_global" | "admin_empresa" | "usuario";
-  tenant_id: string | null;
 }
 
 export function useUserProfile() {
@@ -41,7 +40,7 @@ export function useUserProfile() {
 
       const { data: rolesData } = await supabase
         .from("user_roles")
-        .select("role, tenant_id")
+        .select("role")
         .eq("user_id", user.id);
 
       if (rolesData) {
@@ -57,7 +56,7 @@ export function useUserProfile() {
   const isAdminGlobal = roles.some((r) => r.role === "admin_global");
 
   const isAdminEmpresa = (tenantId?: string) =>
-    roles.some((r) => r.role === "admin_empresa" && (tenantId ? r.tenant_id === tenantId : true));
+    roles.some((r) => r.role === "admin_empresa");
 
   return { profile, roles, isAdminGlobal, isAdminEmpresa, loading };
 }

@@ -17,7 +17,6 @@ export default function Auth() {
   const [nome, setNome] = useState("");
   const navigate = useNavigate();
 
-  // Try to get tenant from context (when at /t/:slug/auth)
   const tenantCtx = (() => {
     try {
       return useTenant();
@@ -37,9 +36,7 @@ export default function Auth() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
-        // If tenant-scoped login, validate user belongs to this tenant
         if (tenant) {
-          // Check admin_global first
           const { data: roles } = await supabase
             .from("user_roles")
             .select("role")
@@ -48,14 +45,14 @@ export default function Auth() {
           const isGlobal = roles?.some((r) => r.role === "admin_global");
 
           if (!isGlobal) {
-            // Check user_tenants link
-            const { data: linkExists } = await supabase
-              .rpc("has_user_tenant_link", {
-                _user_id: data.user.id,
-                _tenant_id: tenant.id,
-              });
+            // Check if user profile is linked to this tenant
+            const { data: profileData } = await supabase
+              .from("profiles")
+              .select("tenant_id")
+              .eq("auth_id", data.user.id)
+              .single();
 
-            if (!linkExists) {
+            if (profileData?.tenant_id !== tenant.id) {
               await supabase.auth.signOut();
               toast.error("Usuário não pertence a esta empresa.");
               setLoading(false);
@@ -70,13 +67,12 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        // Signup — pass tenant_slug in metadata so handle_new_user trigger creates the link
         const metadata: any = { nome };
         if (tenant) {
           metadata.tenant_slug = tenant.slug;
         }
 
-        const { data: signUpData, error } = await supabase.auth.signUp({
+        const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
@@ -85,18 +81,6 @@ export default function Auth() {
           },
         });
         if (error) throw error;
-
-        // After signup, if tenant-scoped, also call link_current_user_to_tenant as a safety net
-        if (tenant && signUpData.user) {
-          try {
-            await supabase.rpc("link_current_user_to_tenant", {
-              _tenant_id: tenant.id,
-            });
-          } catch (linkErr) {
-            // Trigger already handled it — ignore
-            console.warn("link_current_user_to_tenant fallback:", linkErr);
-          }
-        }
 
         toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
       }
@@ -150,51 +134,23 @@ export default function Auth() {
             {!isLogin && (
               <div className="space-y-1.5">
                 <Label htmlFor="nome" className="text-xs">Nome</Label>
-                <Input
-                  id="nome"
-                  value={nome}
-                  onChange={(e) => setNome(e.target.value)}
-                  placeholder="Seu nome completo"
-                  required={!isLogin}
-                  className="h-9"
-                />
+                <Input id="nome" value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Seu nome completo" required={!isLogin} className="h-9" />
               </div>
             )}
             <div className="space-y-1.5">
               <Label htmlFor="email" className="text-xs">E-mail</Label>
-              <Input
-                id="email"
-                type="email"
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="seu@email.com"
-                required
-                className="h-9"
-              />
+              <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="seu@email.com" required className="h-9" />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="password" className="text-xs">Senha</Label>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder="••••••••"
-                required
-                minLength={6}
-                className="h-9"
-              />
+              <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-9" />
             </div>
             <Button type="submit" className="w-full h-9" disabled={loading}>
               {loading ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}
             </Button>
           </form>
           <div className="mt-4 text-center">
-            <button
-              type="button"
-              onClick={() => setIsLogin(!isLogin)}
-              className="text-xs text-muted-foreground hover:text-primary transition-colors"
-            >
+            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
               {isLogin ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
             </button>
           </div>

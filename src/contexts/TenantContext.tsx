@@ -56,14 +56,17 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       } else {
         setTenant(data as Empresa);
 
-        // Sync profile.tenant_id + user_tenants for RLS alignment (Model A)
+        // Sync profile.tenant_id for RLS alignment
         try {
-          await supabase.rpc("link_current_user_to_tenant", {
-            _tenant_id: data.id,
-          });
+          const { data: { session } } = await supabase.auth.getSession();
+          if (session?.user) {
+            await supabase
+              .from("profiles")
+              .update({ tenant_id: data.id })
+              .eq("auth_id", session.user.id);
+          }
         } catch (e) {
-          // Non-blocking: user may be anonymous during auth page load
-          console.warn("link_current_user_to_tenant:", e);
+          console.warn("profile tenant sync:", e);
         }
       }
       setTenantLoading(false);

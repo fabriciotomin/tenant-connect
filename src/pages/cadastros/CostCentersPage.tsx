@@ -8,7 +8,6 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent as AlertContent, AlertDialogDescription, AlertDialogFooter as AlertFoot, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
@@ -17,9 +16,7 @@ interface CC {
   id: string;
   codigo: string;
   descricao: string;
-  tipo: string;
   ativo: boolean;
-  codigo_pai: string | null;
 }
 
 export default function CostCentersPage() {
@@ -28,7 +25,7 @@ export default function CostCentersPage() {
   const qc = useQueryClient();
   const [dialog, setDialog] = useState(false);
   const [editing, setEditing] = useState<CC | null>(null);
-  const [form, setForm] = useState({ codigo: "", descricao: "", tipo: "ANALITICO", codigo_pai: "none" });
+  const [form, setForm] = useState({ codigo: "", descricao: "" });
 
   const { data: centers = [], isLoading } = useQuery({
     queryKey: ["cost_centers_all", tenant?.id],
@@ -36,24 +33,22 @@ export default function CostCentersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("cost_centers")
-        .select("id, codigo, descricao, tipo, ativo, codigo_pai")
+        .select("id, codigo, descricao, ativo")
         .order("codigo");
       if (error) throw error;
       return data as CC[];
     },
   });
 
-  const sinteticos = centers.filter(c => c.tipo === "SINTETICO");
-
   const openNew = () => {
     setEditing(null);
-    setForm({ codigo: "", descricao: "", tipo: "ANALITICO", codigo_pai: "none" });
+    setForm({ codigo: "", descricao: "" });
     setDialog(true);
   };
 
   const openEdit = (c: CC) => {
     setEditing(c);
-    setForm({ codigo: c.codigo, descricao: c.descricao, tipo: c.tipo, codigo_pai: c.codigo_pai || "none" });
+    setForm({ codigo: c.codigo, descricao: c.descricao });
     setDialog(true);
   };
 
@@ -63,16 +58,13 @@ export default function CostCentersPage() {
       const payload: any = {
         tenant_id: tenant.id,
         descricao: form.descricao,
-        tipo: form.tipo as any,
-        codigo_pai: form.codigo_pai === "none" ? null : (form.codigo_pai || null),
-        updated_by: user?.id,
       };
       if (editing) {
         const { error } = await supabase.from("cost_centers").update(payload).eq("id", editing.id);
         if (error) throw error;
       } else {
         payload.codigo = form.codigo;
-        const { error } = await supabase.from("cost_centers").insert({ ...payload, created_by: user?.id } as any);
+        const { error } = await supabase.from("cost_centers").insert(payload);
         if (error) throw error;
       }
     },
@@ -86,7 +78,7 @@ export default function CostCentersPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.rpc("delete_cost_center_safe" as any, { p_id: id });
+      const { error } = await supabase.from("cost_centers").delete().eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -99,7 +91,6 @@ export default function CostCentersPage() {
   const columns = [
     { key: "codigo", label: "Código" },
     { key: "descricao", label: "Descrição" },
-    { key: "tipo", label: "Tipo", render: (r: CC) => <Badge variant={r.tipo === "SINTETICO" ? "secondary" : "default"} className="text-2xs">{r.tipo === "SINTETICO" ? "Sintético" : "Analítico"}</Badge> },
     { key: "ativo", label: "Status", render: (r: CC) => <Badge className={`text-2xs ${r.ativo ? "bg-green-100 text-green-800" : "bg-muted text-muted-foreground"}`}>{r.ativo ? "Ativo" : "Inativo"}</Badge> },
     {
       key: "acoes", label: "", render: (r: CC) => (
@@ -113,7 +104,7 @@ export default function CostCentersPage() {
               <AlertDialogHeader>
                 <AlertDialogTitle className="text-sm">Excluir centro de custo?</AlertDialogTitle>
                 <AlertDialogDescription className="text-xs">
-                  "{r.codigo} - {r.descricao}" será excluído permanentemente. Só é possível excluir se não possuir filhos nem vínculos.
+                  "{r.codigo} - {r.descricao}" será excluído permanentemente.
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertFoot>
@@ -152,28 +143,6 @@ export default function CostCentersPage() {
             <div>
               <Label className="text-xs">Descrição *</Label>
               <Input className="h-8 text-xs" value={form.descricao} onChange={e => setForm(p => ({ ...p, descricao: e.target.value }))} />
-            </div>
-            <div>
-              <Label className="text-xs">Tipo</Label>
-              <Select value={form.tipo} onValueChange={v => setForm(p => ({ ...p, tipo: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="SINTETICO" className="text-xs">Sintético (agrupamento)</SelectItem>
-                  <SelectItem value="ANALITICO" className="text-xs">Analítico (lançamento)</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div>
-              <Label className="text-xs">Centro Pai</Label>
-              <Select value={form.codigo_pai} onValueChange={v => setForm(p => ({ ...p, codigo_pai: v }))}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum (raiz)" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none" className="text-xs">Nenhum (raiz)</SelectItem>
-                  {sinteticos.filter(s => s.id !== editing?.id).map(s => (
-                    <SelectItem key={s.id} value={s.id} className="text-xs">{s.codigo} - {s.descricao}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
           </div>
           <DialogFooter>
