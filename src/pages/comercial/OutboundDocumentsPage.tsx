@@ -47,6 +47,7 @@ interface OutboundDoc {
   numero_nf: number | null;
   serie: string | null;
   pedido_venda_id: string | null;
+  service_order_id: string | null;
   valor_total: number;
   status: string;
   data_emissao: string;
@@ -54,6 +55,7 @@ interface OutboundDoc {
   cliente_id: string;
   customers?: { razao_social: string } | null;
   sales_order_numero?: number | null;
+  os_numero?: number | null;
 }
 
 interface DocItem {
@@ -106,10 +108,22 @@ export default function OutboundDocumentsPage() {
           .in("id", soIds);
         soMap = (soData || []).reduce((acc, s) => ({ ...acc, [s.id]: s.numero_sequencial }), {} as Record<string, number>);
       }
+
+      // Fetch linked service order numbers
+      const osIds = (data || []).map(d => (d as any).service_order_id).filter(Boolean) as string[];
+      let osMap: Record<string, number> = {};
+      if (osIds.length > 0) {
+        const { data: osData } = await supabase
+          .from("service_orders")
+          .select("id, numero_sequencial")
+          .in("id", osIds);
+        osMap = (osData || []).reduce((acc, s) => ({ ...acc, [s.id]: (s as any).numero_sequencial }), {} as Record<string, number>);
+      }
       
       return (data || []).map(d => ({
         ...d,
         sales_order_numero: d.pedido_venda_id ? soMap[d.pedido_venda_id] || null : null,
+        os_numero: (d as any).service_order_id ? osMap[(d as any).service_order_id] || null : null,
       })) as OutboundDoc[];
     },
   });
@@ -375,8 +389,12 @@ export default function OutboundDocumentsPage() {
     },
     {
       key: "pedido_venda",
-      label: "Pedido",
-      render: (r: OutboundDoc) => r.sales_order_numero ? `PV-${r.sales_order_numero}` : "—",
+      label: "Origem",
+      render: (r: OutboundDoc) => {
+        if (r.os_numero) return `OS-${String(r.os_numero).padStart(3, "0")}`;
+        if (r.sales_order_numero) return `PV-${r.sales_order_numero}`;
+        return "—";
+      },
     },
     {
       key: "cliente",
