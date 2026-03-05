@@ -15,7 +15,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, FileOutput, Pencil, Copy, Eye, XCircle } from "lucide-react";
-import { useFinancialClassification } from "@/hooks/useFinancialClassification";
+import { usePaymentOptions } from "@/hooks/usePaymentOptions";
+import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
 
 const statusColors: Record<string, string> = {
   RASCUNHO: "bg-yellow-100 text-yellow-800",
@@ -45,7 +46,8 @@ export default function SalesOrdersPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ customer_id: "" });
+  const [form, setForm] = useState({ customer_id: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
+  const { paymentConditions, paymentMethods } = usePaymentOptions();
   const [orderItems, setOrderItems] = useState<SOItem[]>([]);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<SalesOrder | null>(null);
@@ -103,7 +105,7 @@ export default function SalesOrdersPage() {
     if (error) { toast.error(error.message); return; }
 
     setEditingId(order.id);
-    setForm({ customer_id: order.customer_id || "" });
+    setForm({ customer_id: order.customer_id || "", condicao_pagamento_id: (order as any).condicao_pagamento_id || "", forma_pagamento_id: (order as any).forma_pagamento_id || "" });
     setOrderItems((soItems || []).map(i => ({
       item_id: i.item_id || "",
       quantidade: String(i.quantidade),
@@ -115,7 +117,7 @@ export default function SalesOrdersPage() {
   function handleClose() {
     setOpen(false);
     setEditingId(null);
-    setForm({ customer_id: "" });
+    setForm({ customer_id: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
     setOrderItems([]);
   }
 
@@ -134,7 +136,9 @@ export default function SalesOrdersPage() {
         const { error } = await supabase.from("sales_orders").update({
           customer_id: form.customer_id,
           valor_total: valorTotal,
-        }).eq("id", editingId);
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          forma_pagamento_id: form.forma_pagamento_id || null,
+        } as any).eq("id", editingId);
         if (error) throw error;
 
         const { error: de } = await supabase.from("sale_items").delete().eq("sale_id", editingId);
@@ -156,6 +160,8 @@ export default function SalesOrdersPage() {
           tenant_id: tenant.id,
           customer_id: form.customer_id,
           valor_total: valorTotal,
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          forma_pagamento_id: form.forma_pagamento_id || null,
         } as any).select("id").single();
         if (error) throw error;
 
@@ -190,11 +196,14 @@ export default function SalesOrdersPage() {
         .single();
       if (oe) throw oe;
 
+      // Inherit payment fields to outbound document
       const { data: doc, error: de } = await supabase.from("outbound_documents").insert({
         tenant_id: tenant.id,
         cliente_id: so.customer_id,
         pedido_venda_id: orderId,
         valor_total: so.valor_total,
+        condicao_pagamento_id: (so as any).condicao_pagamento_id || null,
+        forma_pagamento_id: (so as any).forma_pagamento_id || null,
       } as any).select("id").single();
       if (de) throw de;
 
@@ -244,6 +253,8 @@ export default function SalesOrdersPage() {
         tenant_id: tenant.id,
         customer_id: so.customer_id,
         valor_total: so.valor_total,
+        condicao_pagamento_id: (so as any).condicao_pagamento_id || null,
+        forma_pagamento_id: (so as any).forma_pagamento_id || null,
       } as any).select("id").single();
       if (error) throw error;
 
@@ -354,6 +365,16 @@ export default function SalesOrdersPage() {
                   <SelectContent>{customers.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.razao_social}</SelectItem>)}</SelectContent>
                 </Select>
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <PaymentFieldsSelect
+                condicaoId={form.condicao_pagamento_id}
+                formaId={form.forma_pagamento_id}
+                onCondicaoChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}
+                onFormaChange={(v) => setForm({ ...form, forma_pagamento_id: v })}
+                paymentConditions={paymentConditions}
+                paymentMethods={paymentMethods}
+              />
             </div>
 
             <div className="space-y-2">
