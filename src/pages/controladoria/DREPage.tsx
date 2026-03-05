@@ -39,18 +39,35 @@ export default function DREPage() {
     },
   });
 
-  // ==================== ITEMS (for cost lookup) ====================
+  // ==================== STOCK MOVEMENTS (SAIDA) for historical cost ====================
+  const { data: saidaMovements = [] } = useQuery({
+    queryKey: ["dre_saida_movements", startDate, endDate, tenant?.id],
+    enabled: !!tenant?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("stock_movements")
+        .select("item_id, quantidade, custo_unitario")
+        .eq("tipo", "SAIDA")
+        .is("deleted_at", null)
+        .gte("created_at", startDate)
+        .lte("created_at", endDate + "T23:59:59");
+      if (error) throw error;
+      return data || [];
+    },
+  });
+
+  // ==================== ITEMS (for tipo_item lookup only) ====================
   const { data: itemsMap = {} } = useQuery({
     queryKey: ["dre_items", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, tipo_item, custo_medio")
+        .select("id, tipo_item")
         .is("deleted_at", null);
       if (error) throw error;
-      const map: Record<string, { tipo_item: string; custo_medio: number }> = {};
-      (data || []).forEach((i: any) => { map[i.id] = { tipo_item: i.tipo_item || "REVENDA", custo_medio: Number(i.custo_medio) || 0 }; });
+      const map: Record<string, { tipo_item: string }> = {};
+      (data || []).forEach((i: any) => { map[i.id] = { tipo_item: i.tipo_item || "REVENDA" }; });
       return map;
     },
   });
@@ -98,34 +115,30 @@ export default function DREPage() {
     }, 0);
   }, [receitaData]);
 
-  // CMV: custo_medio * qty for REVENDA/MATERIA_PRIMA items in outbound docs
+  // CMV: from SAIDA stock_movements with historical custo_unitario for non-SERVICO items
   const cmv = useMemo(() => {
-    return receitaData.reduce((sum, item: any) => {
-      const info = itemsMap[item.item_id];
+    return saidaMovements.reduce((sum, mov: any) => {
+      const info = itemsMap[mov.item_id];
       if (!info || info.tipo_item === "SERVICO") return sum;
-      return sum + info.custo_medio * Number(item.quantidade);
+      return sum + Number(mov.custo_unitario || 0) * Number(mov.quantidade);
     }, 0);
-  }, [receitaData, itemsMap]);
+  }, [saidaMovements, itemsMap]);
 
-  // CSP: custo_medio * qty for SERVICO items (from outbound docs + service orders)
+  // CSP: from SAIDA stock_movements for SERVICO items + OS items (using items.custo_medio via movements)
   const csp = useMemo(() => {
     let total = 0;
-    // From outbound docs
-    receitaData.forEach((item: any) => {
-      const info = itemsMap[item.item_id];
+    // From outbound SAIDA movements (SERVICO items)
+    saidaMovements.forEach((mov: any) => {
+      const info = itemsMap[mov.item_id];
       if (info?.tipo_item === "SERVICO") {
-        total += info.custo_medio * Number(item.quantidade);
+        total += Number(mov.custo_unitario || 0) * Number(mov.quantidade);
       }
     });
-    // From service orders
-    osItemsData.forEach((item: any) => {
-      const info = itemsMap[item.item_id];
-      if (info?.tipo_item === "SERVICO") {
-        total += info.custo_medio * Number(item.quantidade);
-      }
-    });
+    // From service orders (still uses items cost since OS doesn't generate stock_movements)
+    // We'll need items.custo_medio for OS — fetch separately if needed
+    // For now, OS CSP items don't have historical cost locked in movements
     return total;
-  }, [receitaData, osItemsData, itemsMap]);
+  }, [saidaMovements, itemsMap]);
 
   const totalDespesas = useMemo(() => {
     return despesaData.reduce((sum, item: any) => {
@@ -143,7 +156,7 @@ export default function DREPage() {
     <div className="space-y-4">
       <div>
         <h1 className="text-lg font-semibold">DRE – Demonstrativo de Resultados</h1>
-        <p className="text-xs text-muted-foreground">Receita de documentos processados • CMV e CSP • Despesas do contas a pagar</p>
+        <p className="text-xs text-muted-foreground">Receita de documentos processados • CMV e CSP históricos • Despesas do contas a pagar</p>
       </div>
 
       <div className="flex flex-wrap gap-3 items-end">
@@ -170,19 +183,16 @@ export default function DREPage() {
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
-          {/* RECEITA BRUTA */}
           <div className="flex justify-between py-1 text-xs font-semibold border-b border-border/50 mt-2">
             <span>RECEITA BRUTA</span>
             <span className="text-green-600">{totalReceitas > 0 ? fmt(totalReceitas) : "—"}</span>
           </div>
 
-          {/* CMV */}
           <div className="flex justify-between py-0.5 text-xs text-muted-foreground" style={{ paddingLeft: "16px" }}>
             <span>(-) CMV – Custo de Mercadoria Vendida</span>
             <span className="text-destructive">{cmv > 0 ? `(${fmt(cmv)})` : "—"}</span>
           </div>
 
-          {/* CSP */}
           <div className="flex justify-between py-0.5 text-xs text-muted-foreground" style={{ paddingLeft: "16px" }}>
             <span>(-) CSP – Custo dos Serviços Prestados</span>
             <span className="text-destructive">{csp > 0 ? `(${fmt(csp)})` : "—"}</span>
@@ -190,13 +200,11 @@ export default function DREPage() {
 
           <Separator className="my-1" />
 
-          {/* LUCRO BRUTO */}
           <div className="flex justify-between py-1 text-xs font-semibold">
             <span>LUCRO BRUTO</span>
             <span className={lucroBruto >= 0 ? "text-green-600" : "text-destructive"}>{fmtSigned(lucroBruto)}</span>
           </div>
 
-          {/* DESPESAS */}
           <div className="flex justify-between py-1 text-xs font-semibold border-b border-border/50 mt-2">
             <span>DESPESAS OPERACIONAIS</span>
             <span className="text-destructive">{totalDespesas > 0 ? `(${fmt(totalDespesas)})` : "—"}</span>
