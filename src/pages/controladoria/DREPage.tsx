@@ -16,8 +16,12 @@ export default function DREPage() {
   const [year, setYear] = useState(String(currentYear));
   const [month, setMonth] = useState(String(currentMonth));
 
-  const startDate = `${year}-${month.padStart(2, "0")}-01`;
-  const endDate = new Date(parseInt(year), parseInt(month), 0).toISOString().split("T")[0];
+  const selectedYear = parseInt(year);
+  const selectedMonth = parseInt(month);
+  const isCurrentMonth = selectedYear === currentYear && selectedMonth === currentMonth;
+
+  const startDate = `${year}-${String(selectedMonth).padStart(2, "0")}-01`;
+  const endDate = new Date(selectedYear, selectedMonth, 0).toISOString().split("T")[0];
 
   // ==================== RECEITA (outbound_documents PROCESSADO) ====================
   const { data: receitaData = [] } = useQuery({
@@ -56,38 +60,21 @@ export default function DREPage() {
     },
   });
 
-  // ==================== ITEMS (for tipo_item lookup only) ====================
+  // ==================== ITEMS (tipo_item + custo_medio for current month) ====================
   const { data: itemsMap = {} } = useQuery({
     queryKey: ["dre_items", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, tipo_item")
+        .select("id, tipo_item, custo_medio")
         .is("deleted_at", null);
       if (error) throw error;
-      const map: Record<string, { tipo_item: string }> = {};
-      (data || []).forEach((i: any) => { map[i.id] = { tipo_item: i.tipo_item || "REVENDA" }; });
+      const map: Record<string, { tipo_item: string; custo_medio: number }> = {};
+      (data || []).forEach((i: any) => {
+        map[i.id] = { tipo_item: i.tipo_item || "REVENDA", custo_medio: Number(i.custo_medio || 0) };
+      });
       return map;
-    },
-  });
-
-  // ==================== SERVICE ORDER ITEMS (for CSP from OS) ====================
-  const { data: osItemsData = [] } = useQuery({
-    queryKey: ["dre_os_items", startDate, endDate, tenant?.id],
-    enabled: !!tenant?.id,
-    queryFn: async () => {
-      const { data, error } = await supabase
-        .from("service_order_items")
-        .select(`
-          quantidade, item_id,
-          service_orders!inner(status, data_inicio, tenant_id)
-        `)
-        .eq("service_orders.status", "CONFIRMADO")
-        .gte("service_orders.data_inicio", startDate)
-        .lte("service_orders.data_inicio", endDate);
-      if (error) throw error;
-      return data || [];
     },
   });
 
@@ -115,30 +102,36 @@ export default function DREPage() {
     }, 0);
   }, [receitaData]);
 
-  // CMV: from SAIDA stock_movements with historical custo_unitario for non-SERVICO items
+  // Helper: get cost for an item/movement based on current vs past month
+  const getItemCost = (mov: any): number => {
+    if (isCurrentMonth) {
+      // Current month (open): use live custo_medio from items table
+      const info = itemsMap[mov.item_id];
+      return info?.custo_medio ?? 0;
+    }
+    // Past months (closed): use historical custo_unitario locked at sale time
+    return Number(mov.custo_unitario || 0);
+  };
+
+  // CMV: non-SERVICO items
   const cmv = useMemo(() => {
     return saidaMovements.reduce((sum, mov: any) => {
       const info = itemsMap[mov.item_id];
       if (!info || info.tipo_item === "SERVICO") return sum;
-      return sum + Number(mov.custo_unitario || 0) * Number(mov.quantidade);
+      return sum + getItemCost(mov) * Number(mov.quantidade);
     }, 0);
-  }, [saidaMovements, itemsMap]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saidaMovements, itemsMap, isCurrentMonth]);
 
-  // CSP: from SAIDA stock_movements for SERVICO items + OS items (using items.custo_medio via movements)
+  // CSP: SERVICO items
   const csp = useMemo(() => {
-    let total = 0;
-    // From outbound SAIDA movements (SERVICO items)
-    saidaMovements.forEach((mov: any) => {
+    return saidaMovements.reduce((sum, mov: any) => {
       const info = itemsMap[mov.item_id];
-      if (info?.tipo_item === "SERVICO") {
-        total += Number(mov.custo_unitario || 0) * Number(mov.quantidade);
-      }
-    });
-    // From service orders (still uses items cost since OS doesn't generate stock_movements)
-    // We'll need items.custo_medio for OS — fetch separately if needed
-    // For now, OS CSP items don't have historical cost locked in movements
-    return total;
-  }, [saidaMovements, itemsMap]);
+      if (info?.tipo_item !== "SERVICO") return sum;
+      return sum + getItemCost(mov) * Number(mov.quantidade);
+    }, 0);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saidaMovements, itemsMap, isCurrentMonth]);
 
   const totalDespesas = useMemo(() => {
     return despesaData.reduce((sum, item: any) => {
@@ -152,11 +145,15 @@ export default function DREPage() {
   const fmt = (v: number) => `R$ ${Math.abs(v).toLocaleString("pt-BR", { minimumFractionDigits: 2 })}`;
   const fmtSigned = (v: number) => v >= 0 ? fmt(v) : `(${fmt(v)})`;
 
+  const costLabel = isCurrentMonth ? "(custo médio atual)" : "(custo histórico travado)";
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-lg font-semibold">DRE – Demonstrativo de Resultados</h1>
-        <p className="text-xs text-muted-foreground">Receita de documentos processados • CMV e CSP históricos • Despesas do contas a pagar</p>
+        <p className="text-xs text-muted-foreground">
+          Receita de documentos processados • CMV e CSP {costLabel} • Despesas do contas a pagar
+        </p>
       </div>
 
       <div className="flex flex-wrap gap-3 items-end">
@@ -179,7 +176,7 @@ export default function DREPage() {
       <Card>
         <CardHeader className="pb-2">
           <CardTitle className="text-sm">
-            DRE - {meses[parseInt(month) - 1]} / {year}
+            DRE - {meses[selectedMonth - 1]} / {year}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-1">
