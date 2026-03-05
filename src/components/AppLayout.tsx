@@ -6,7 +6,7 @@ import { useUserProfile } from "@/hooks/useUserProfile";
 import { useTenant } from "@/contexts/TenantContext";
 import { Button } from "@/components/ui/button";
 import { LogOut, User, Building2, ChevronDown } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import {
   DropdownMenu,
@@ -21,6 +21,7 @@ export function AppLayout() {
   const { profile, isAdminGlobal } = useUserProfile();
   const { tenant } = useTenant();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: empresas = [] } = useQuery({
     queryKey: ["empresas_switch"],
@@ -45,6 +46,7 @@ export function AppLayout() {
     const target = empresas.find((e) => e.slug === newSlug);
     if (target && profile) {
       try {
+        // Update profile tenant_id BEFORE navigation so RLS is correct
         await supabase
           .from("profiles")
           .update({ tenant_id: target.id })
@@ -52,6 +54,8 @@ export function AppLayout() {
       } catch (e) {
         console.warn("tenant switch profile update:", e);
       }
+      // Clear all cached queries to prevent cross-tenant data leaks
+      queryClient.clear();
     }
     navigate(`/t/${newSlug}`, { replace: true });
   };
