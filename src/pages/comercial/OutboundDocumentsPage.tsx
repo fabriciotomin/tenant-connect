@@ -88,6 +88,42 @@ export default function OutboundDocumentsPage() {
     data_emissao: new Date().toISOString().split("T")[0],
     condicao_pagamento_id: "",
     forma_pagamento_id: "",
+    serie: "",
+    numero_nf: "",
+  });
+
+  // Load default series for auto-fill
+  const { data: defaultSeries } = useQuery({
+    queryKey: ["default_document_series", tenant?.id],
+    enabled: !!tenant?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_series")
+        .select("id, serie, proximo_numero, nome")
+        .eq("padrao", true)
+        .eq("ativo", true)
+        .is("deleted_at", null)
+        .limit(1)
+        .single();
+      if (error) return null;
+      return data;
+    },
+  });
+
+  // Load all active series for dropdown
+  const { data: seriesList = [] } = useQuery({
+    queryKey: ["document_series_list", tenant?.id],
+    enabled: !!tenant?.id,
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("document_series")
+        .select("id, serie, proximo_numero, nome, padrao")
+        .eq("ativo", true)
+        .is("deleted_at", null)
+        .order("nome");
+      if (error) throw error;
+      return data;
+    },
   });
 
   const [newItems, setNewItems] = useState<
