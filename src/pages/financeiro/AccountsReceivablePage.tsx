@@ -187,6 +187,7 @@ export default function AccountsReceivablePage() {
     },
     { key: "cliente", label: "Cliente", render: (r: AR) => r.customers?.razao_social || "—" },
     { key: "documento", label: "Documento", render: (r: AR) => r.documento_origem || "—" },
+    { key: "data_lancamento", label: "Lançamento", render: (r: AR) => r.created_at ? format(new Date(r.created_at), "dd/MM/yyyy") : "—" },
     { key: "data_vencimento", label: "Vencimento", render: (r: AR) => format(new Date(r.data_vencimento), "dd/MM/yyyy") },
     { key: "valor", label: "Valor", render: (r: AR) => `R$ ${Number(r.valor).toFixed(2)}` },
     { key: "status", label: "Status", render: (r: AR) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
