@@ -67,17 +67,18 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        const metadata: any = { nome };
-        if (tenant) {
-          metadata.tenant_slug = tenant.slug;
+        if (!tenant) {
+          toast.error("Acesse pela URL da sua empresa para se cadastrar.");
+          setLoading(false);
+          return;
         }
 
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: metadata,
-            emailRedirectTo: window.location.origin,
+            data: { nome, tenant_id: tenant.id },
+            emailRedirectTo: window.location.origin + `/t/${tenant.slug}`,
           },
         });
         if (error) throw error;
