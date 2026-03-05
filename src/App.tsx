@@ -2,10 +2,11 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { AppLayout } from "@/components/AppLayout";
+import { PermissionGuard } from "@/components/PermissionGuard";
 import Auth from "./pages/Auth";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -58,11 +59,6 @@ import ModulePage from "./pages/ModulePage";
 
 const queryClient = new QueryClient();
 
-/**
- * PublicRoute for tenant-scoped auth pages (/t/:slug/auth).
- * If user is already logged in, redirects to tenant dashboard.
- * NEVER redirects to "/" — always preserves the tenant slug.
- */
 function TenantPublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { slug } = useParams<{ slug: string }>();
@@ -75,7 +71,6 @@ function TenantPublicRoute({ children }: { children: React.ReactNode }) {
     );
   }
 
-  // If user is logged in and we have a slug, redirect to tenant dashboard
   if (user && slug) {
     return <Navigate to={`/t/${slug}`} replace />;
   }
@@ -83,10 +78,6 @@ function TenantPublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
-/**
- * PublicRoute for global auth (/auth).
- * If user is logged in, redirects to "/" (SelectTenant will handle).
- */
 function GlobalPublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
 
@@ -105,6 +96,11 @@ function GlobalPublicRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+/** Helper to wrap a page with PermissionGuard */
+function P({ module, children }: { module: string; children: React.ReactNode }) {
+  return <PermissionGuard module={module}>{children}</PermissionGuard>;
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -112,10 +108,8 @@ const App = () => (
       <Sonner />
       <BrowserRouter>
         <Routes>
-          {/* Global auth (no tenant) - redirects to select tenant */}
           <Route path="/auth" element={<GlobalPublicRoute><Auth /></GlobalPublicRoute>} />
           
-          {/* Tenant-scoped auth — TenantProvider resolves slug via RPC */}
           <Route path="/t/:slug/auth" element={
             <TenantProvider>
               <TenantPublicRoute>
@@ -124,10 +118,8 @@ const App = () => (
             </TenantProvider>
           } />
 
-          {/* Select tenant page (for admin_global or redirect) */}
           <Route path="/" element={<SelectTenant />} />
 
-          {/* Tenant-scoped routes */}
           <Route path="/t/:slug" element={
             <TenantProvider>
               <TenantGate>
@@ -138,46 +130,47 @@ const App = () => (
             <Route index element={<Dashboard />} />
 
             {/* Estoque */}
-            <Route path="estoque/itens" element={<ItemsPage />} />
-            <Route path="estoque/grupos" element={<ItemGroupsPage />} />
-            <Route path="estoque/movimentacoes" element={<StockMovementsPage />} />
+            <Route path="estoque/itens" element={<P module="Estoque - Itens"><ItemsPage /></P>} />
+            <Route path="estoque/grupos" element={<P module="Estoque - Grupos"><ItemGroupsPage /></P>} />
+            <Route path="estoque/movimentacoes" element={<P module="Estoque - Movimentações"><StockMovementsPage /></P>} />
 
             {/* Compras */}
-            <Route path="compras/pedidos" element={<PurchaseOrdersPage />} />
-            <Route path="compras/entradas" element={<InboundDocumentsPage />} />
+            <Route path="compras/pedidos" element={<P module="Compras - Pedidos"><PurchaseOrdersPage /></P>} />
+            <Route path="compras/entradas" element={<P module="Compras - Entradas (NF-e)"><InboundDocumentsPage /></P>} />
 
             {/* Comercial */}
-            <Route path="comercial/orcamentos" element={<QuotationsPage />} />
-            <Route path="comercial/pedidos-venda" element={<SalesOrdersPage />} />
-            <Route path="comercial/documentos-saida" element={<OutboundDocumentsPage />} />
+            <Route path="comercial/orcamentos" element={<P module="Comercial - Orçamentos"><QuotationsPage /></P>} />
+            <Route path="comercial/pedidos-venda" element={<P module="Comercial - Pedidos de Venda"><SalesOrdersPage /></P>} />
+            <Route path="comercial/documentos-saida" element={<P module="Comercial - Doc. Saída (NF-e)"><OutboundDocumentsPage /></P>} />
 
             {/* Serviços */}
-            <Route path="servicos/ordens" element={<ServiceOrdersPage />} />
-            <Route path="servicos/agenda" element={<AgendaPage />} />
+            <Route path="servicos/ordens" element={<P module="Serviços - Ordens de Serviço"><ServiceOrdersPage /></P>} />
+            <Route path="servicos/agenda" element={<P module="Serviços - Agenda"><AgendaPage /></P>} />
 
             {/* Financeiro */}
-            <Route path="financeiro/pagar" element={<AccountsPayablePage />} />
-            <Route path="financeiro/receber" element={<AccountsReceivablePage />} />
-            <Route path="financeiro/bancos" element={<BanksPage />} />
-            <Route path="financeiro/movimentacao-bancaria" element={<BankStatementPage />} />
+            <Route path="financeiro/pagar" element={<P module="Financeiro - Contas a Pagar"><AccountsPayablePage /></P>} />
+            <Route path="financeiro/receber" element={<P module="Financeiro - Contas a Receber"><AccountsReceivablePage /></P>} />
+            <Route path="financeiro/bancos" element={<P module="Cadastros - Bancos"><BanksPage /></P>} />
+            <Route path="financeiro/movimentacao-bancaria" element={<P module="Financeiro - Extrato Bancário"><BankStatementPage /></P>} />
+
             {/* Controladoria */}
-            <Route path="controladoria/dre" element={<DREPage />} />
-            <Route path="controladoria/fluxo-caixa" element={<CashFlowPage />} />
+            <Route path="controladoria/dre" element={<P module="Controladoria - DRE"><DREPage /></P>} />
+            <Route path="controladoria/fluxo-caixa" element={<P module="Controladoria - Fluxo de Caixa"><CashFlowPage /></P>} />
 
             {/* Cadastros */}
-            <Route path="cadastros/fornecedores" element={<SuppliersPage />} />
-            <Route path="cadastros/clientes" element={<CustomersPage />} />
-            <Route path="cadastros/formas-pagamento" element={<PaymentMethodsPage />} />
-            <Route path="cadastros/condicoes-pagamento" element={<PaymentConditionsPage />} />
-            <Route path="cadastros/naturezas" element={<FinancialNaturesPage />} />
-            <Route path="cadastros/centros-custo" element={<CostCentersPage />} />
-            <Route path="cadastros/bancos" element={<BanksPage />} />
-            <Route path="cadastros/series" element={<DocumentSeriesPage />} />
-            <Route path="cadastros/unidades-medida" element={<UnidadesMedidaPage />} />
+            <Route path="cadastros/fornecedores" element={<P module="Cadastros - Fornecedores"><SuppliersPage /></P>} />
+            <Route path="cadastros/clientes" element={<P module="Cadastros - Clientes"><CustomersPage /></P>} />
+            <Route path="cadastros/formas-pagamento" element={<P module="Cadastros - Formas de Pagamento"><PaymentMethodsPage /></P>} />
+            <Route path="cadastros/condicoes-pagamento" element={<P module="Cadastros - Cond. Pagamento"><PaymentConditionsPage /></P>} />
+            <Route path="cadastros/naturezas" element={<P module="Cadastros - Nat. Financeiras"><FinancialNaturesPage /></P>} />
+            <Route path="cadastros/centros-custo" element={<P module="Cadastros - Centros de Custo"><CostCentersPage /></P>} />
+            <Route path="cadastros/bancos" element={<P module="Cadastros - Bancos"><BanksPage /></P>} />
+            <Route path="cadastros/series" element={<P module="Cadastros - Séries de Documento"><DocumentSeriesPage /></P>} />
+            <Route path="cadastros/unidades-medida" element={<P module="Cadastros - Unid. Medida"><UnidadesMedidaPage /></P>} />
 
             {/* Admin */}
-            <Route path="empresas" element={<EmpresasPage />} />
-            <Route path="usuarios" element={<UsersPage />} />
+            <Route path="empresas" element={<P module="Administração - Usuários"><EmpresasPage /></P>} />
+            <Route path="usuarios" element={<P module="Administração - Usuários"><UsersPage /></P>} />
             <Route path="configuracoes" element={<ModulePage title="Configurações" />} />
           </Route>
 
