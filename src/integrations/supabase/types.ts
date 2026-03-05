@@ -2061,6 +2061,17 @@ export type Database = {
         Returns: undefined
       }
       recalc_inbound_costs: { Args: { _tenant_id: string }; Returns: undefined }
+      resolve_tenant_by_slug: {
+        Args: { _slug: string }
+        Returns: {
+          id: string
+          nome_fantasia: string
+          plano: string
+          razao_social: string
+          slug: string
+          status: string
+        }[]
+      }
     }
     Enums: {
       app_role: "admin_global" | "admin_empresa" | "usuario"
