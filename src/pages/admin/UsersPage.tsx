@@ -154,7 +154,7 @@ export default function UsersPage() {
   });
 
   const { data: allPermissions = [] } = useQuery({
-    queryKey: ["all_permissions"],
+    queryKey: ["all_permissions_active"],
     queryFn: async () => {
       const { data, error } = await supabase.from("permissions").select("*").is("deleted_at", null).order("module").order("action");
       if (error) throw error;
