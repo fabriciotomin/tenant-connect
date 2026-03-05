@@ -96,7 +96,7 @@ const registerItems: MenuItem[] = [
   },
   { title: "Usuários", url: "/usuarios", icon: Users, permission: "Administração - Usuários" },
   { title: "Empresas", url: "/empresas", icon: Building2, permission: "Administração - Usuários" },
-  { title: "Configurações", url: "/configuracoes", icon: Settings },
+  { title: "Configurações", url: "/configuracoes", icon: Settings, permission: "Administração - Configurações" },
 ];
 
 export function AppSidebar() {
