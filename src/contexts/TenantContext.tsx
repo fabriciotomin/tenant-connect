@@ -51,6 +51,7 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         .select("id, slug, razao_social, nome_fantasia, status, plano")
         .eq("slug", slug)
         .eq("status", "ativo")
+        .is("deleted_at", null)
         .single();
 
       if (error || !data) {
