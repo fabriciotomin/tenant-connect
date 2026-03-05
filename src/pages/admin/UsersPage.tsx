@@ -249,7 +249,15 @@ export default function UsersPage() {
     const currentRole = userRoles.includes("admin_empresa") ? "admin_empresa" : "usuario";
     setSelectedRole(currentRole);
     setSelectedPerms(new Set(userPermsMap[u.auth_id] || []));
-    setExpandedModules(new Set(Object.keys(permsByModule)));
+    // Expand all parent modules and sub-features
+    const allKeys = new Set<string>();
+    for (const [parent, subs] of Object.entries(permTree)) {
+      allKeys.add(parent);
+      for (const sub of Object.keys(subs)) {
+        allKeys.add(`${parent}::${sub}`);
+      }
+    }
+    setExpandedModules(allKeys);
     setEditUser(u);
   };
 
