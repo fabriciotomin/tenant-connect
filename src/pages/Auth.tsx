@@ -125,9 +125,11 @@ export default function Auth() {
               : isLogin ? "Entrar no ERP" : "Criar conta"}
           </CardTitle>
           <CardDescription>
-            {isLogin
-              ? "Entre com suas credenciais para acessar o sistema"
-              : "Preencha os dados para criar sua conta"}
+            {!isLogin && !tenant
+              ? "Acesse pela URL da sua empresa para se cadastrar."
+              : isLogin
+                ? "Entre com suas credenciais para acessar o sistema"
+                : "Preencha os dados para criar sua conta"}
           </CardDescription>
         </CardHeader>
         <CardContent>
