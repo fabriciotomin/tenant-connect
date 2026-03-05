@@ -45,6 +45,7 @@ export function AppLayout() {
     const target = empresas.find((e) => e.slug === newSlug);
     if (target && profile) {
       try {
+        // Update profile tenant_id BEFORE navigation so RLS is correct
         await supabase
           .from("profiles")
           .update({ tenant_id: target.id })
@@ -52,6 +53,8 @@ export function AppLayout() {
       } catch (e) {
         console.warn("tenant switch profile update:", e);
       }
+      // Clear all cached queries to prevent cross-tenant data leaks
+      queryClient.clear();
     }
     navigate(`/t/${newSlug}`, { replace: true });
   };
