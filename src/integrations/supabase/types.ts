@@ -2034,6 +2034,10 @@ export type Database = {
         Args: { _doc_id: string }
         Returns: undefined
       }
+      check_permission: {
+        Args: { _action: string; _module: string }
+        Returns: boolean
+      }
       confirm_service_order: { Args: { _os_id: string }; Returns: string }
       create_audit_log: {
         Args: {
