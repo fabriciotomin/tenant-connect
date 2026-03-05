@@ -763,11 +763,13 @@ export type Database = {
         Row: {
           ativo: boolean | null
           category_id: string | null
+          centro_custo_id: string | null
           codigo: string
           created_at: string | null
           custo_medio: number | null
           descricao: string
           id: string
+          natureza_financeira_id: string | null
           preco_venda: number | null
           saldo_estoque: number | null
           tenant_id: string
@@ -777,11 +779,13 @@ export type Database = {
         Insert: {
           ativo?: boolean | null
           category_id?: string | null
+          centro_custo_id?: string | null
           codigo: string
           created_at?: string | null
           custo_medio?: number | null
           descricao: string
           id?: string
+          natureza_financeira_id?: string | null
           preco_venda?: number | null
           saldo_estoque?: number | null
           tenant_id: string
@@ -791,11 +795,13 @@ export type Database = {
         Update: {
           ativo?: boolean | null
           category_id?: string | null
+          centro_custo_id?: string | null
           codigo?: string
           created_at?: string | null
           custo_medio?: number | null
           descricao?: string
           id?: string
+          natureza_financeira_id?: string | null
           preco_venda?: number | null
           saldo_estoque?: number | null
           tenant_id?: string
@@ -808,6 +814,20 @@ export type Database = {
             columns: ["category_id"]
             isOneToOne: false
             referencedRelation: "item_categories"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_natureza_financeira_id_fkey"
+            columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
             referencedColumns: ["id"]
           },
           {
