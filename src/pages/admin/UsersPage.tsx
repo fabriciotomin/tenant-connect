@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, CheckCircle2, XCircle, Shield, ChevronRight, FolderOpen, Folder } from "lucide-react";
+import { Trash2, CheckCircle2, XCircle, Shield, ChevronRight, Eye, Plus, Pencil, Trash, Package, DollarSign, ShoppingCart, TrendingUp, Wrench, BarChart3, Settings } from "lucide-react";
 
 interface ProfileRow {
   id: string;
@@ -592,12 +592,28 @@ export default function UsersPage() {
                   Nenhuma permissão cadastrada no sistema.
                 </p>
               ) : (
-                <div className="border rounded-md divide-y">
-                  {Object.entries(permsByModule).map(([mod, perms]) => {
+                <div className="border rounded-md overflow-hidden">
+                  {Object.entries(permsByModule).map(([mod, perms], idx) => {
                     const modState = getModuleCheckState(perms);
                     const isExpanded = expandedModules.has(mod);
                     const selectedCount = perms.filter(p => selectedPerms.has(p.id)).length;
-                    
+                    const moduleIcons: Record<string, React.ReactNode> = {
+                      'Cadastros': <Settings className="h-3.5 w-3.5" />,
+                      'Estoque': <Package className="h-3.5 w-3.5" />,
+                      'Financeiro': <DollarSign className="h-3.5 w-3.5" />,
+                      'Compras': <ShoppingCart className="h-3.5 w-3.5" />,
+                      'Vendas': <TrendingUp className="h-3.5 w-3.5" />,
+                      'Serviços': <Wrench className="h-3.5 w-3.5" />,
+                      'Controladoria': <BarChart3 className="h-3.5 w-3.5" />,
+                      'Administração': <Shield className="h-3.5 w-3.5" />,
+                    };
+                    const actionIcons: Record<string, React.ReactNode> = {
+                      'Visualizar': <Eye className="h-3 w-3 text-muted-foreground" />,
+                      'Criar': <Plus className="h-3 w-3 text-muted-foreground" />,
+                      'Editar': <Pencil className="h-3 w-3 text-muted-foreground" />,
+                      'Excluir': <Trash className="h-3 w-3 text-muted-foreground" />,
+                    };
+
                     return (
                       <Collapsible
                         key={mod}
@@ -610,36 +626,37 @@ export default function UsersPage() {
                           });
                         }}
                       >
-                        <div className="flex items-center gap-2 px-3 py-2.5 hover:bg-accent/40 transition-colors">
-                          <Checkbox
-                            checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
-                            onCheckedChange={() => toggleModule(perms)}
-                            className="mr-1"
-                          />
-                          <CollapsibleTrigger className="flex items-center gap-2 flex-1 min-w-0" asChild>
-                            <button type="button" className="flex items-center gap-2 flex-1 min-w-0 text-left">
-                              <ChevronRight className={`h-3.5 w-3.5 shrink-0 text-muted-foreground transition-transform duration-200 ${isExpanded ? 'rotate-90' : ''}`} />
-                              {isExpanded
-                                ? <FolderOpen className="h-4 w-4 shrink-0 text-primary" />
-                                : <Folder className="h-4 w-4 shrink-0 text-muted-foreground" />
-                              }
-                              <span className="text-xs font-semibold uppercase tracking-wide truncate">{mod}</span>
-                              <span className="ml-auto text-2xs text-muted-foreground tabular-nums shrink-0">
-                                {selectedCount}/{perms.length}
-                              </span>
-                            </button>
-                          </CollapsibleTrigger>
-                        </div>
+                        <CollapsibleTrigger asChild>
+                          <button
+                            type="button"
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors ${idx > 0 ? 'border-t' : ''}`}
+                          >
+                            <Checkbox
+                              checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
+                              onCheckedChange={() => toggleModule(perms)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
+                            <ChevronRight className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`} />
+                            <span className="text-primary">{moduleIcons[mod] || <Package className="h-3.5 w-3.5" />}</span>
+                            <span className="text-xs font-semibold flex-1">{mod}</span>
+                            <Badge variant={selectedCount === perms.length ? "default" : selectedCount > 0 ? "secondary" : "outline"} className="text-[10px] h-4 px-1.5 tabular-nums">
+                              {selectedCount}/{perms.length}
+                            </Badge>
+                          </button>
+                        </CollapsibleTrigger>
                         <CollapsibleContent>
-                          <div className="pl-12 pr-3 pb-2 space-y-0.5">
+                          <div className="bg-muted/30 border-t">
                             {perms.map((p) => (
-                              <label key={p.id} className="flex items-center gap-2.5 text-xs cursor-pointer py-1.5 px-2 rounded hover:bg-accent/30 transition-colors">
+                              <label
+                                key={p.id}
+                                className="flex items-center gap-2 pl-10 pr-3 py-1.5 text-xs cursor-pointer hover:bg-accent/30 transition-colors"
+                              >
                                 <Checkbox
                                   checked={selectedPerms.has(p.id)}
                                   onCheckedChange={() => togglePerm(p.id)}
                                 />
-                                <span className="font-medium">{p.action}</span>
-                                {p.description && <span className="text-muted-foreground">— {p.description}</span>}
+                                {actionIcons[p.action] || <Eye className="h-3 w-3 text-muted-foreground" />}
+                                <span>{p.action}</span>
                               </label>
                             ))}
                           </div>
