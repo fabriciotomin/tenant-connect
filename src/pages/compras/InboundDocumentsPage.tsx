@@ -1031,6 +1031,8 @@ export default function InboundDocumentsPage() {
                           <th className="text-right p-1.5">Impostos</th>
                           <th className="text-right p-1.5">Vlr. Frete Item</th>
                           <th className="text-right p-1.5">Subtotal</th>
+                          <th className="text-left p-1.5">Nat. Fin.</th>
+                          <th className="text-left p-1.5">C. Custo</th>
                           {selectedDoc.status === "PENDENTE" && <th className="p-1.5 w-8"></th>}
                         </tr>
                       </thead>
@@ -1038,6 +1040,8 @@ export default function InboundDocumentsPage() {
                         {docItems.map((di, idx) => {
                           const frete = fretePerItem[idx] || 0;
                           const subtotal = di.quantidade * di.valor_unitario + di.impostos + frete;
+                          const natCode = di.natureza_financeira_id ? natures.find(n => n.id === di.natureza_financeira_id) : null;
+                          const ccCode = di.centro_custo_id ? costCenters.find(c => c.id === di.centro_custo_id) : null;
                           return (
                           <tr key={di.id} className="border-t">
                             <td className="p-1.5">{di.items?.codigo} - {di.items?.descricao}</td>
@@ -1047,6 +1051,12 @@ export default function InboundDocumentsPage() {
                             <td className="text-right p-1.5">R$ {Number(di.impostos).toFixed(2)}</td>
                             <td className="text-right p-1.5">R$ {frete.toFixed(2)}</td>
                             <td className="text-right p-1.5 font-medium">R$ {subtotal.toFixed(2)}</td>
+                            <td className="p-1.5 text-muted-foreground">
+                              {natCode ? `${natCode.codigo} - ${natCode.descricao}` : "—"}
+                            </td>
+                            <td className="p-1.5 text-muted-foreground">
+                              {ccCode ? `${ccCode.codigo} - ${ccCode.descricao}` : "—"}
+                            </td>
                             {selectedDoc.status === "PENDENTE" && (
                               <td className="p-1.5">
                                 <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-destructive" onClick={() => removeItemFromDoc.mutate({ itemId: di.id!, docId: selectedDoc.id })}>
@@ -1057,7 +1067,7 @@ export default function InboundDocumentsPage() {
                           </tr>
                           );
                         })}
-                        {docItems.length === 0 && <tr><td colSpan={8} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
+                        {docItems.length === 0 && <tr><td colSpan={10} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
                       </tbody>
                     </table>
                   </div>
