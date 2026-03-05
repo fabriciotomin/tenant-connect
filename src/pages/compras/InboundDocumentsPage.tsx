@@ -54,6 +54,8 @@ interface DocItem {
   quantidade: number;
   valor_unitario: number;
   impostos: number;
+  natureza_financeira_id?: string | null;
+  centro_custo_id?: string | null;
   items?: { codigo: string; descricao: string; unidade_medida?: string } | null;
 }
 
@@ -230,7 +232,11 @@ export default function InboundDocumentsPage() {
         .eq("inbound_document_id", selectedDoc!.id)
         .is("deleted_at", null);
       if (error) throw error;
-      return data as unknown as DocItem[];
+      return (data || []).map((d: any) => ({
+        ...d,
+        natureza_financeira_id: d.natureza_financeira_id || null,
+        centro_custo_id: d.centro_custo_id || null,
+      })) as unknown as DocItem[];
     },
   });
 
@@ -791,18 +797,7 @@ export default function InboundDocumentsPage() {
               )}
 
               {newItems.length > 0 && (
-                <div className="border rounded-md overflow-hidden">
-                  <div className={`grid ${form.frete_modo === "manual" ? "grid-cols-[1fr_60px_70px_90px_70px_70px_80px_32px]" : "grid-cols-[1fr_60px_70px_90px_70px_80px_80px_32px]"} gap-1 px-2 py-1.5 bg-muted/50 text-2xs font-medium text-muted-foreground`}>
-                    <span>Item</span>
-                    <span>UN</span>
-                    <span className="text-right">Qtd</span>
-                    <span className="text-right">Vlr Unit</span>
-                    <span className="text-right">Impostos</span>
-                    {form.frete_modo === "manual" && <span className="text-right">Frete</span>}
-                    <span className="text-right">Frete Rat.</span>
-                    <span className="text-right">Total</span>
-                    <span></span>
-                  </div>
+                <div className="space-y-2">
                   {newItems.map((item, idx) => {
                     const qty = parseFloat(item.quantidade || "0");
                     const price = parseFloat(item.valor_unitario || "0");
@@ -811,35 +806,74 @@ export default function InboundDocumentsPage() {
                     const totalItem = qty * price + imp + freteItem;
 
                     return (
-                      <div key={item.item_id + idx}>
-                        <div className={`grid ${form.frete_modo === "manual" ? "grid-cols-[1fr_60px_70px_90px_70px_70px_80px_32px]" : "grid-cols-[1fr_60px_70px_90px_70px_80px_80px_32px]"} gap-1 px-2 py-1 items-center border-t text-2xs`}>
-                          <span className="truncate" title={`${item.codigo} - ${item.descricao}`}>
-                            <span className="font-mono">{item.codigo}</span> {item.descricao}
-                          </span>
-                          <span className="text-muted-foreground">{item.unidade_medida}</span>
-                          <Input className="h-6 text-2xs text-right p-1" type="number" min="0.001" step="0.01" value={item.quantidade} onChange={(e) => updateNewItem(idx, "quantidade", e.target.value)} />
-                          <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" data-field="valor_unitario" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
-                          <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" data-field="impostos" value={item.impostos} onChange={(e) => updateNewItem(idx, "impostos", e.target.value)} />
+                      <div key={item.item_id + idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
+                        <div className={`grid ${form.frete_modo === "manual" ? "grid-cols-[1fr_60px_70px_90px_70px_70px_80px_32px]" : "grid-cols-[1fr_60px_70px_90px_70px_80px_80px_32px]"} gap-1 items-end text-2xs`}>
+                          <div>
+                            <Label className="text-2xs">Item</Label>
+                            <span className="text-2xs block border rounded-md px-2 py-1 h-6 bg-muted/30 text-muted-foreground leading-[1.5rem] truncate" title={`${item.codigo} - ${item.descricao}`}>
+                              <span className="font-mono">{item.codigo}</span> {item.descricao}
+                            </span>
+                          </div>
+                          <div>
+                            <Label className="text-2xs">UN</Label>
+                            <span className="text-2xs block border rounded-md px-2 py-1 h-6 bg-muted/30 text-center text-muted-foreground leading-[1.5rem]">{item.unidade_medida}</span>
+                          </div>
+                          <div>
+                            <Label className="text-2xs">Qtd</Label>
+                            <Input className="h-6 text-2xs text-right p-1" type="number" min="0.001" step="0.01" value={item.quantidade} onChange={(e) => updateNewItem(idx, "quantidade", e.target.value)} />
+                          </div>
+                          <div>
+                            <Label className="text-2xs">Vlr Unit</Label>
+                            <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
+                          </div>
+                          <div>
+                            <Label className="text-2xs">Impostos</Label>
+                            <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" value={item.impostos} onChange={(e) => updateNewItem(idx, "impostos", e.target.value)} />
+                          </div>
                           {form.frete_modo === "manual" ? (
-                            <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" value={item.frete_item} onChange={(e) => updateNewItem(idx, "frete_item", e.target.value)} />
+                            <div>
+                              <Label className="text-2xs">Frete</Label>
+                              <Input className="h-6 text-2xs text-right p-1" type="number" min="0" step="0.01" value={item.frete_item} onChange={(e) => updateNewItem(idx, "frete_item", e.target.value)} />
+                            </div>
                           ) : (
-                            <span className="text-right text-muted-foreground">{computedFretePerItem[idx]?.toFixed(2) || "0.00"}</span>
+                            <div>
+                              <Label className="text-2xs">Frete Rat.</Label>
+                              <span className="text-2xs block text-right text-muted-foreground leading-6">{computedFretePerItem[idx]?.toFixed(2) || "0.00"}</span>
+                            </div>
                           )}
-                          <span className="text-right font-medium">{totalItem.toFixed(2)}</span>
-                          <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive" onClick={() => removeNewItem(idx)}>
+                          <div>
+                            <Label className="text-2xs">Total</Label>
+                            <span className="text-2xs block text-right font-medium leading-6">{totalItem.toFixed(2)}</span>
+                          </div>
+                          <Button type="button" variant="ghost" size="sm" className="h-6 w-6 p-0 text-destructive self-end" onClick={() => removeNewItem(idx)}>
                             <Trash2 className="h-3 w-3" />
                           </Button>
+                        </div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <div>
+                            <Label className="text-2xs">Nat. Financeira</Label>
+                            <Select value={item.natureza_financeira_id} onValueChange={(v) => updateNewItem(idx, "natureza_financeira_id", v)}>
+                              <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                              <SelectContent>
+                                {natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          <div>
+                            <Label className="text-2xs">Centro de Custo</Label>
+                            <Select value={item.centro_custo_id} onValueChange={(v) => updateNewItem(idx, "centro_custo_id", v)}>
+                              <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                              <SelectContent>
+                                {costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}
+                              </SelectContent>
+                            </Select>
+                          </div>
                         </div>
                       </div>
                     );
                   })}
-                  <div className={`grid ${form.frete_modo === "manual" ? "grid-cols-[1fr_60px_70px_90px_70px_70px_80px_32px]" : "grid-cols-[1fr_60px_70px_90px_70px_80px_80px_32px]"} gap-1 px-2 py-1.5 border-t bg-muted/30 text-2xs font-semibold`}>
-                    <span>{newItems.length} item(ns)</span>
-                    <span></span><span></span><span></span><span></span>
-                    {form.frete_modo === "manual" && <span></span>}
-                    <span className="text-right">Frete: {freteTotal.toFixed(2)}</span>
-                    <span className="text-right">R$ {grandTotal.toFixed(2)}</span>
-                    <span></span>
+                  <div className="text-right text-xs font-semibold pt-1">
+                    {newItems.length} item(ns) — Frete: R$ {freteTotal.toFixed(2)} — Total: R$ {grandTotal.toFixed(2)}
                   </div>
                 </div>
               )}
@@ -997,6 +1031,8 @@ export default function InboundDocumentsPage() {
                           <th className="text-right p-1.5">Impostos</th>
                           <th className="text-right p-1.5">Vlr. Frete Item</th>
                           <th className="text-right p-1.5">Subtotal</th>
+                          <th className="text-left p-1.5">Nat. Fin.</th>
+                          <th className="text-left p-1.5">C. Custo</th>
                           {selectedDoc.status === "PENDENTE" && <th className="p-1.5 w-8"></th>}
                         </tr>
                       </thead>
@@ -1004,6 +1040,8 @@ export default function InboundDocumentsPage() {
                         {docItems.map((di, idx) => {
                           const frete = fretePerItem[idx] || 0;
                           const subtotal = di.quantidade * di.valor_unitario + di.impostos + frete;
+                          const natCode = di.natureza_financeira_id ? natures.find(n => n.id === di.natureza_financeira_id) : null;
+                          const ccCode = di.centro_custo_id ? costCenters.find(c => c.id === di.centro_custo_id) : null;
                           return (
                           <tr key={di.id} className="border-t">
                             <td className="p-1.5">{di.items?.codigo} - {di.items?.descricao}</td>
@@ -1013,6 +1051,12 @@ export default function InboundDocumentsPage() {
                             <td className="text-right p-1.5">R$ {Number(di.impostos).toFixed(2)}</td>
                             <td className="text-right p-1.5">R$ {frete.toFixed(2)}</td>
                             <td className="text-right p-1.5 font-medium">R$ {subtotal.toFixed(2)}</td>
+                            <td className="p-1.5 text-muted-foreground">
+                              {natCode ? `${natCode.codigo} - ${natCode.descricao}` : "—"}
+                            </td>
+                            <td className="p-1.5 text-muted-foreground">
+                              {ccCode ? `${ccCode.codigo} - ${ccCode.descricao}` : "—"}
+                            </td>
                             {selectedDoc.status === "PENDENTE" && (
                               <td className="p-1.5">
                                 <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-destructive" onClick={() => removeItemFromDoc.mutate({ itemId: di.id!, docId: selectedDoc.id })}>
@@ -1023,7 +1067,7 @@ export default function InboundDocumentsPage() {
                           </tr>
                           );
                         })}
-                        {docItems.length === 0 && <tr><td colSpan={8} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
+                        {docItems.length === 0 && <tr><td colSpan={10} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
                       </tbody>
                     </table>
                   </div>
