@@ -82,7 +82,9 @@ const App = () => (
           {/* Tenant-scoped auth */}
           <Route path="/t/:slug/auth" element={
             <TenantProvider>
-              <Auth />
+              <PublicRoute>
+                <Auth />
+              </PublicRoute>
             </TenantProvider>
           } />
 
