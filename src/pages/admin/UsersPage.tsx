@@ -11,10 +11,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { ScrollArea } from "@/components/ui/scroll-area";
+import { Separator } from "@/components/ui/separator";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, CheckCircle2, XCircle } from "lucide-react";
+import { Trash2, CheckCircle2, XCircle, Shield } from "lucide-react";
 
 interface ProfileRow {
   id: string;
@@ -400,9 +403,9 @@ export default function UsersPage() {
             const isTargetAdminGlobal = (rolesMap[r.auth_id] || []).includes("admin_global");
             if (isTargetAdminGlobal) return <span className="text-muted-foreground text-2xs">—</span>;
             return (
-              <div className="flex gap-1">
+               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" className="h-6 text-2xs px-2" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>
-                  Editar
+                  <Shield className="h-3 w-3 mr-1" /> Permissões
                 </Button>
                 <Button variant="ghost" size="sm" className="h-6 text-2xs px-2 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteUser(r); }}>
                   <Trash2 className="h-3 w-3" />
@@ -542,72 +545,94 @@ export default function UsersPage() {
       </Dialog>
 
       {/* Edit Permissions Dialog */}
-      <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
-        <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle className="text-sm">Editar Usuário — {editUser?.nome}</DialogTitle>
-          </DialogHeader>
-          <div className="space-y-4">
-            <div className="space-y-1.5">
-              <Label className="text-xs font-medium">Papel</Label>
-              <Select value={selectedRole} onValueChange={setSelectedRole}>
-                <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="usuario" className="text-xs">Usuário</SelectItem>
-                  <SelectItem value="admin_empresa" className="text-xs">Admin Empresa</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
+      <Sheet open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
+        <SheetContent side="right" className="w-full sm:max-w-lg p-0 flex flex-col">
+          <SheetHeader className="px-6 pt-6 pb-4 border-b">
+            <SheetTitle className="flex items-center gap-2 text-sm">
+              <Shield className="h-4 w-4 text-primary" />
+              Permissões — {editUser?.nome}
+            </SheetTitle>
+            <p className="text-xs text-muted-foreground">{editUser?.email}</p>
+          </SheetHeader>
 
-            <div className="space-y-2">
+          <ScrollArea className="flex-1 px-6 py-4">
+            <div className="space-y-5">
+              {/* Role selector */}
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Papel</Label>
+                <Select value={selectedRole} onValueChange={setSelectedRole}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="usuario" className="text-xs">Usuário</SelectItem>
+                    <SelectItem value="admin_empresa" className="text-xs">Admin Empresa</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <Separator />
+
+              {/* Global select all */}
               <div className="flex items-center justify-between">
-                <Label className="text-xs font-medium">Permissões</Label>
-                <label className="flex items-center gap-2 text-xs cursor-pointer">
+                <Label className="text-sm font-semibold">Permissões de Acesso</Label>
+                <label className="flex items-center gap-2 text-xs cursor-pointer select-none rounded-md border border-input px-3 py-1.5 hover:bg-accent transition-colors">
                   <Checkbox
                     checked={allSelected ? true : someSelected ? "indeterminate" : false}
                     onCheckedChange={toggleAll}
                   />
-                  <span className="text-muted-foreground">Selecionar todas</span>
+                  <span className="font-medium">Marcar tudo</span>
                 </label>
               </div>
 
-              {Object.entries(permsByModule).map(([mod, perms]) => {
-                const modState = getModuleCheckState(perms);
-                return (
-                  <div key={mod} className="space-y-1">
-                    <label className="flex items-center gap-2 cursor-pointer py-0.5">
-                      <Checkbox
-                        checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
-                        onCheckedChange={() => toggleModule(perms)}
-                      />
-                      <span className="text-2xs font-semibold text-muted-foreground uppercase tracking-wide">{mod}</span>
-                    </label>
-                    <div className="pl-6">
-                      {perms.map((p) => (
-                        <label key={p.id} className="flex items-center gap-2 text-xs cursor-pointer py-0.5">
+              {/* Modules tree */}
+              {Object.keys(permsByModule).length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-8">
+                  Nenhuma permissão cadastrada no sistema.
+                </p>
+              ) : (
+                <div className="space-y-3">
+                  {Object.entries(permsByModule).map(([mod, perms]) => {
+                    const modState = getModuleCheckState(perms);
+                    return (
+                      <div key={mod} className="rounded-lg border bg-card">
+                        <label className="flex items-center gap-3 cursor-pointer px-4 py-3 hover:bg-accent/50 transition-colors rounded-t-lg">
                           <Checkbox
-                            checked={selectedPerms.has(p.id)}
-                            onCheckedChange={() => togglePerm(p.id)}
+                            checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
+                            onCheckedChange={() => toggleModule(perms)}
                           />
-                          <span>{p.action}</span>
-                          {p.description && <span className="text-muted-foreground">— {p.description}</span>}
+                          <span className="text-xs font-bold uppercase tracking-wider text-foreground">{mod}</span>
+                          <Badge variant="secondary" className="ml-auto text-2xs">
+                            {perms.filter(p => selectedPerms.has(p.id)).length}/{perms.length}
+                          </Badge>
                         </label>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
+                        <Separator />
+                        <div className="px-4 py-2 space-y-0.5">
+                          {perms.map((p) => (
+                            <label key={p.id} className="flex items-center gap-3 text-xs cursor-pointer py-1.5 px-2 rounded-md hover:bg-accent/30 transition-colors">
+                              <Checkbox
+                                checked={selectedPerms.has(p.id)}
+                                onCheckedChange={() => togglePerm(p.id)}
+                              />
+                              <span className="font-medium">{p.action}</span>
+                              {p.description && <span className="text-muted-foreground ml-1">— {p.description}</span>}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
+          </ScrollArea>
 
-            <div className="flex justify-end gap-2 pt-2">
-              <Button type="button" variant="outline" size="sm" onClick={() => setEditUser(null)}>Cancelar</Button>
-              <Button size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
-                {saveMutation.isPending ? "Salvando..." : "Salvar"}
-              </Button>
-            </div>
+          <div className="border-t px-6 py-4 flex justify-end gap-2">
+            <Button type="button" variant="outline" size="sm" onClick={() => setEditUser(null)}>Cancelar</Button>
+            <Button size="sm" disabled={saveMutation.isPending} onClick={() => saveMutation.mutate()}>
+              {saveMutation.isPending ? "Salvando..." : "Salvar permissões"}
+            </Button>
           </div>
-        </DialogContent>
-      </Dialog>
+        </SheetContent>
+      </Sheet>
 
       {/* Delete Dialog */}
       <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
