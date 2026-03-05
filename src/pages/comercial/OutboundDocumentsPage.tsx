@@ -505,14 +505,14 @@ export default function OutboundDocumentsPage() {
                 const itemInfo = items.find(i => i.id === item.item_id);
                 return (
                   <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
-                    <div className="grid grid-cols-[1fr_50px_80px_100px_32px] gap-2 items-end">
+                    <div className="grid grid-cols-[1fr_80px_100px_32px] sm:grid-cols-[1fr_50px_80px_100px_32px] gap-2 items-end">
                       <div>
                         <Label className="text-2xs">Item</Label>
                         <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-muted-foreground leading-[1.75rem] truncate">
                           {itemInfo ? `${itemInfo.codigo} - ${itemInfo.descricao}` : item.item_id.slice(0, 8)}
                         </span>
                       </div>
-                      <div>
+                      <div className="hidden sm:block">
                         <Label className="text-2xs">UN</Label>
                         <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-center text-muted-foreground leading-[1.75rem]">
                           {itemInfo?.unidade_medida || "UN"}
