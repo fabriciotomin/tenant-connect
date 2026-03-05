@@ -114,6 +114,7 @@ export type Database = {
       }
       accounts_receivable: {
         Row: {
+          centro_custo_id: string | null
           cliente_id: string | null
           created_at: string | null
           data_vencimento: string
@@ -121,11 +122,13 @@ export type Database = {
           documento_origem: string | null
           forma_pagamento_id: string | null
           id: string
+          natureza_financeira_id: string | null
           status: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id: string
           valor: number
         }
         Insert: {
+          centro_custo_id?: string | null
           cliente_id?: string | null
           created_at?: string | null
           data_vencimento: string
@@ -133,11 +136,13 @@ export type Database = {
           documento_origem?: string | null
           forma_pagamento_id?: string | null
           id?: string
+          natureza_financeira_id?: string | null
           status?: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id: string
           valor: number
         }
         Update: {
+          centro_custo_id?: string | null
           cliente_id?: string | null
           created_at?: string | null
           data_vencimento?: string
@@ -145,11 +150,19 @@ export type Database = {
           documento_origem?: string | null
           forma_pagamento_id?: string | null
           id?: string
+          natureza_financeira_id?: string | null
           status?: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id?: string
           valor?: number
         }
         Relationships: [
+          {
+            foreignKeyName: "accounts_receivable_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "accounts_receivable_cliente_id_fkey"
             columns: ["cliente_id"]
@@ -162,6 +175,13 @@ export type Database = {
             columns: ["forma_pagamento_id"]
             isOneToOne: false
             referencedRelation: "formas_pagamento"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_natureza_financeira_id_fkey"
+            columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
             referencedColumns: ["id"]
           },
           {
@@ -925,30 +945,36 @@ export type Database = {
       }
       outbound_document_items: {
         Row: {
+          centro_custo_id: string | null
           created_at: string | null
           deleted_at: string | null
           id: string
           item_id: string | null
+          natureza_financeira_id: string | null
           outbound_document_id: string | null
           quantidade: number
           tenant_id: string | null
           valor_unitario: number | null
         }
         Insert: {
+          centro_custo_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
           item_id?: string | null
+          natureza_financeira_id?: string | null
           outbound_document_id?: string | null
           quantidade?: number
           tenant_id?: string | null
           valor_unitario?: number | null
         }
         Update: {
+          centro_custo_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
           item_id?: string | null
+          natureza_financeira_id?: string | null
           outbound_document_id?: string | null
           quantidade?: number
           tenant_id?: string | null
@@ -956,10 +982,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "outbound_document_items_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "outbound_document_items_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_document_items_natureza_financeira_id_fkey"
+            columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
             referencedColumns: ["id"]
           },
           {
@@ -1753,44 +1793,64 @@ export type Database = {
       }
       stock_movements: {
         Row: {
+          centro_custo_id: string | null
           created_at: string | null
           custo_unitario: number | null
           deleted_at: string | null
           documento_origem: string | null
           id: string
           item_id: string
+          natureza_financeira_id: string | null
           quantidade: number
           tenant_id: string
           tipo: string
         }
         Insert: {
+          centro_custo_id?: string | null
           created_at?: string | null
           custo_unitario?: number | null
           deleted_at?: string | null
           documento_origem?: string | null
           id?: string
           item_id: string
+          natureza_financeira_id?: string | null
           quantidade: number
           tenant_id: string
           tipo: string
         }
         Update: {
+          centro_custo_id?: string | null
           created_at?: string | null
           custo_unitario?: number | null
           deleted_at?: string | null
           documento_origem?: string | null
           id?: string
           item_id?: string
+          natureza_financeira_id?: string | null
           quantidade?: number
           tenant_id?: string
           tipo?: string
         }
         Relationships: [
           {
+            foreignKeyName: "stock_movements_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "stock_movements_item_id_fkey"
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "stock_movements_natureza_financeira_id_fkey"
+            columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
             referencedColumns: ["id"]
           },
           {
