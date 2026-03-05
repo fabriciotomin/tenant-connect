@@ -7,6 +7,7 @@ interface UserProfile {
   tenant_id: string | null;
   nome: string;
   email: string;
+  status: string;
 }
 
 interface UserRole {
@@ -30,7 +31,7 @@ export function useUserProfile() {
     const fetchProfile = async () => {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, tenant_id, nome, email, deleted_at")
+        .select("id, tenant_id, nome, email, deleted_at, status")
         .eq("auth_id", user.id)
         .single();
 
@@ -48,6 +49,7 @@ export function useUserProfile() {
         tenant_id: profileData.tenant_id,
         nome: profileData.nome,
         email: profileData.email,
+        status: (profileData as any).status || 'PENDENTE_APROVACAO',
       });
 
       const { data: rolesData } = await supabase
@@ -70,5 +72,8 @@ export function useUserProfile() {
   const isAdminEmpresa = (tenantId?: string) =>
     roles.some((r) => r.role === "admin_empresa");
 
-  return { profile, roles, isAdminGlobal, isAdminEmpresa, loading };
+  const isActive = profile?.status === 'ATIVO';
+  const isPending = profile?.status === 'PENDENTE_APROVACAO';
+
+  return { profile, roles, isAdminGlobal, isAdminEmpresa, isActive, isPending, loading };
 }
