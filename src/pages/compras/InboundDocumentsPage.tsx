@@ -1034,6 +1034,8 @@ export default function InboundDocumentsPage() {
                     </div>
                   )}
                 </div>
+                  );
+                })()}
               </TabsContent>
 
               {selectedDoc.status === "PROCESSADO" && (
