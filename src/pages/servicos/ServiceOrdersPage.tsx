@@ -29,6 +29,7 @@ const statusColors: Record<string, string> = {
 
 interface ServiceOrder {
   id: string;
+  numero_sequencial: number;
   valor_total: number;
   status: string;
   data_inicio_prevista: string | null;
@@ -210,7 +211,7 @@ export default function ServiceOrdersPage() {
   const canEdit = (r: ServiceOrder) => r.status === "RASCUNHO";
 
   const columns = [
-    { key: "id", label: "ID", render: (r: ServiceOrder) => r.id.slice(0, 8) + "..." },
+    { key: "numero", label: "Nº OS", render: (r: ServiceOrder) => `OS-${String(r.numero_sequencial).padStart(3, "0")}` },
     { key: "cliente", label: "Cliente", render: (r: ServiceOrder) => r.customers?.razao_social || "—" },
     { key: "status", label: "Status", render: (r: ServiceOrder) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor", render: (r: ServiceOrder) => `R$ ${Number(r.valor_total).toFixed(2)}` },
