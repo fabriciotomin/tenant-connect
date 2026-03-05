@@ -21,6 +21,7 @@ export function AppLayout() {
   const { profile, isAdminGlobal } = useUserProfile();
   const { tenant } = useTenant();
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const { data: empresas = [] } = useQuery({
     queryKey: ["empresas_switch"],
