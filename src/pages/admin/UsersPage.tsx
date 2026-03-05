@@ -73,6 +73,7 @@ export default function UsersPage() {
   const [selectedRole, setSelectedRole] = useState<string>("usuario");
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
   const [approveTenantId, setApproveTenantId] = useState<string>("");
+  const [expandedModules, setExpandedModules] = useState<Set<string>>(new Set());
   const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const activeTenantId = tenant?.id || profile?.tenant_id;
