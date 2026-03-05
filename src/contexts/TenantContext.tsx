@@ -1,5 +1,6 @@
-import { createContext, useContext, useEffect, useState, ReactNode } from "react";
+import { createContext, useContext, useEffect, useState, useRef, ReactNode } from "react";
 import { useParams } from "react-router-dom";
+import { useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 
 interface Empresa {
@@ -30,6 +31,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const [tenant, setTenant] = useState<Empresa | null>(null);
   const [tenantLoading, setTenantLoading] = useState(true);
   const [tenantError, setTenantError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const prevTenantId = useRef<string | null>(null);
 
   useEffect(() => {
     if (!slug) {
@@ -53,27 +56,38 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       if (error || !data) {
         setTenantError("Empresa não encontrada ou inativa.");
         setTenant(null);
-      } else {
-        setTenant(data as Empresa);
-
-        // Sync profile.tenant_id for RLS alignment
-        try {
-          const { data: { session } } = await supabase.auth.getSession();
-          if (session?.user) {
-            await supabase
-              .from("profiles")
-              .update({ tenant_id: data.id })
-              .eq("auth_id", session.user.id);
-          }
-        } catch (e) {
-          console.warn("profile tenant sync:", e);
-        }
+        setTenantLoading(false);
+        return;
       }
+
+      // CRITICAL: Sync profile.tenant_id BEFORE setting tenant state
+      // This ensures RLS get_tenant_id() returns the correct tenant
+      // before any queries fire
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (session?.user) {
+          await supabase
+            .from("profiles")
+            .update({ tenant_id: data.id })
+            .eq("auth_id", session.user.id);
+        }
+      } catch (e) {
+        console.warn("profile tenant sync:", e);
+      }
+
+      // CRITICAL: Clear ALL cached queries when switching tenants
+      // This prevents stale data from a previous tenant from showing
+      if (prevTenantId.current && prevTenantId.current !== data.id) {
+        queryClient.clear();
+      }
+      prevTenantId.current = data.id;
+
+      setTenant(data as Empresa);
       setTenantLoading(false);
     };
 
     fetchTenant();
-  }, [slug]);
+  }, [slug, queryClient]);
 
   return (
     <TenantContext.Provider value={{ tenant, tenantLoading, tenantError, slug }}>
