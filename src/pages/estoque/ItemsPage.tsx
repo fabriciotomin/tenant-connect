@@ -2,6 +2,7 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
+import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 import { DataTable } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -30,11 +31,14 @@ interface Item {
   ativo: boolean;
   unidade_medida: string;
   category_id: string | null;
+  natureza_financeira_id: string | null;
+  centro_custo_id: string | null;
 }
 
 export default function ItemsPage() {
   const { tenant } = useTenant();
   const queryClient = useQueryClient();
+  const { natures, costCenters } = useFinancialClassification();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newUnidade, setNewUnidade] = useState("");
@@ -43,6 +47,7 @@ export default function ItemsPage() {
   const emptyForm = {
     codigo: "", descricao: "", tipo_item: "REVENDA", unidade_medida: "UN",
     preco_venda: "0", ativo: true, category_id: "",
+    natureza_financeira_id: "", centro_custo_id: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -51,7 +56,7 @@ export default function ItemsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, tipo_item, saldo_estoque, custo_medio, unidade_medida, preco_venda, ativo, category_id")
+        .select("id, codigo, descricao, tipo_item, saldo_estoque, custo_medio, unidade_medida, preco_venda, ativo, category_id, natureza_financeira_id, centro_custo_id")
         .order("codigo");
       if (error) throw error;
       return data as Item[];
@@ -117,6 +122,8 @@ export default function ItemsPage() {
         preco_venda: parseFloat(form.preco_venda) || 0,
         ativo: form.ativo,
         category_id: form.category_id || null,
+        natureza_financeira_id: form.natureza_financeira_id || null,
+        centro_custo_id: form.centro_custo_id || null,
       };
       if (editingId) {
         const { error } = await supabase.from("items").update(payload).eq("id", editingId);
@@ -145,6 +152,8 @@ export default function ItemsPage() {
       preco_venda: String(item.preco_venda || 0),
       ativo: true,
       category_id: item.category_id || "",
+      natureza_financeira_id: item.natureza_financeira_id || "",
+      centro_custo_id: item.centro_custo_id || "",
     });
     setOpen(true);
   }
@@ -159,6 +168,8 @@ export default function ItemsPage() {
       preco_venda: String(item.preco_venda || 0),
       ativo: item.ativo,
       category_id: item.category_id || "",
+      natureza_financeira_id: item.natureza_financeira_id || "",
+      centro_custo_id: item.centro_custo_id || "",
     });
     setOpen(true);
   }
@@ -275,6 +286,31 @@ export default function ItemsPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Preço de Venda (R$)</Label>
                 <Input className="h-8 text-xs" type="number" step="0.01" min="0" value={form.preco_venda} onChange={(e) => setForm({ ...form, preco_venda: e.target.value })} />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Natureza Financeira</Label>
+                <Select value={form.natureza_financeira_id} onValueChange={(v) => setForm({ ...form, natureza_financeira_id: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                  <SelectContent>
+                    {natures.map((n) => (
+                      <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Centro de Custo</Label>
+                <Select value={form.centro_custo_id} onValueChange={(v) => setForm({ ...form, centro_custo_id: v })}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                  <SelectContent>
+                    {costCenters.map((c) => (
+                      <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             </div>
 
