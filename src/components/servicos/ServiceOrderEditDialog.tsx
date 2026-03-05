@@ -66,7 +66,7 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).order("razao_social");
+      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).is("deleted_at", null).order("razao_social");
       if (error) throw error;
       return data;
     },
@@ -75,7 +75,7 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   const { data: paymentConditions = [] } = useQuery({
     queryKey: ["payment_conditions_select"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("payment_conditions").select("id, descricao").order("descricao");
+      const { data, error } = await supabase.from("payment_conditions").select("id, descricao").is("deleted_at", null).order("descricao");
       if (error) throw error;
       return data;
     },
@@ -84,7 +84,7 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   const { data: allItems = [] } = useQuery({
     queryKey: ["items_select_active_with_classification"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).is("deleted_at", null).order("codigo");
       if (error) throw error;
       return data;
     },
