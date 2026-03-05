@@ -1207,6 +1207,7 @@ export type Database = {
           email: string
           id: string
           nome: string
+          status: string
           tenant_id: string | null
         }
         Insert: {
@@ -1216,6 +1217,7 @@ export type Database = {
           email: string
           id?: string
           nome: string
+          status?: string
           tenant_id?: string | null
         }
         Update: {
@@ -1225,6 +1227,7 @@ export type Database = {
           email?: string
           id?: string
           nome?: string
+          status?: string
           tenant_id?: string | null
         }
         Relationships: [

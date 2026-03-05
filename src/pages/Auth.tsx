@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { toast } from "sonner";
-import { Building2, AlertTriangle } from "lucide-react";
+import { Building2, AlertTriangle, CheckCircle2 } from "lucide-react";
 
 export default function Auth() {
   const [isLogin, setIsLogin] = useState(true);
@@ -15,6 +15,7 @@ export default function Auth() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [nome, setNome] = useState("");
+  const [signupDone, setSignupDone] = useState(false);
   const navigate = useNavigate();
 
   const tenantCtx = (() => {
@@ -36,6 +37,31 @@ export default function Auth() {
         const { data, error } = await supabase.auth.signInWithPassword({ email, password });
         if (error) throw error;
 
+        // Check profile status
+        const { data: profileData } = await supabase
+          .from("profiles")
+          .select("tenant_id, status")
+          .eq("auth_id", data.user.id)
+          .single();
+
+        const profileStatus = (profileData as any)?.status;
+
+        if (profileStatus === 'PENDENTE_APROVACAO') {
+          // Check if admin_global (they bypass)
+          const { data: roles } = await supabase
+            .from("user_roles")
+            .select("role")
+            .eq("user_id", data.user.id);
+          const isGlobal = roles?.some((r) => r.role === "admin_global");
+
+          if (!isGlobal) {
+            await supabase.auth.signOut();
+            toast.error("Seu cadastro está aguardando aprovação do administrador.");
+            setLoading(false);
+            return;
+          }
+        }
+
         if (tenant) {
           const { data: roles } = await supabase
             .from("user_roles")
@@ -44,20 +70,11 @@ export default function Auth() {
 
           const isGlobal = roles?.some((r) => r.role === "admin_global");
 
-          if (!isGlobal) {
-            // Check if user profile is linked to this tenant
-            const { data: profileData } = await supabase
-              .from("profiles")
-              .select("tenant_id")
-              .eq("auth_id", data.user.id)
-              .single();
-
-            if (profileData?.tenant_id !== tenant.id) {
-              await supabase.auth.signOut();
-              toast.error("Usuário não pertence a esta empresa.");
-              setLoading(false);
-              return;
-            }
+          if (!isGlobal && profileData?.tenant_id !== tenant.id) {
+            await supabase.auth.signOut();
+            toast.error("Usuário não pertence a esta empresa.");
+            setLoading(false);
+            return;
           }
 
           toast.success("Login realizado com sucesso!");
@@ -67,23 +84,22 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        if (!tenant) {
-          toast.error("Acesse pela URL da sua empresa para se cadastrar.");
-          setLoading(false);
-          return;
+        const metadata: Record<string, string> = { nome };
+        if (tenant) {
+          metadata.tenant_id = tenant.id;
         }
 
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: { nome, tenant_id: tenant.id },
-            emailRedirectTo: window.location.origin + `/t/${tenant.slug}`,
+            data: metadata,
+            emailRedirectTo: window.location.origin + (tenant ? `/t/${tenant.slug}/auth` : '/auth'),
           },
         });
         if (error) throw error;
 
-        toast.success("Cadastro realizado! Verifique seu e-mail para confirmar.");
+        setSignupDone(true);
       }
     } catch (error: any) {
       toast.error(error.message || "Erro na autenticação");
@@ -112,6 +128,29 @@ export default function Auth() {
     );
   }
 
+  // Success state after signup
+  if (signupDone) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background p-4">
+        <Card className="w-full max-w-md">
+          <CardHeader className="text-center space-y-2">
+            <CheckCircle2 className="w-12 h-12 text-green-500 mx-auto" />
+            <CardTitle className="text-xl">Cadastro enviado!</CardTitle>
+            <CardDescription className="text-sm">
+              Seu cadastro foi recebido com sucesso. Um administrador irá analisar e aprovar seu acesso.
+              Você será notificado quando sua conta for ativada.
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="text-center">
+            <Button variant="outline" size="sm" onClick={() => { setSignupDone(false); setIsLogin(true); }}>
+              Voltar ao login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <Card className="w-full max-w-md">
@@ -125,11 +164,9 @@ export default function Auth() {
               : isLogin ? "Entrar no ERP" : "Criar conta"}
           </CardTitle>
           <CardDescription>
-            {!isLogin && !tenant
-              ? "Acesse pela URL da sua empresa para se cadastrar."
-              : isLogin
-                ? "Entre com suas credenciais para acessar o sistema"
-                : "Preencha os dados para criar sua conta"}
+            {isLogin
+              ? "Entre com suas credenciais para acessar o sistema"
+              : "Preencha os dados para solicitar acesso"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -148,19 +185,14 @@ export default function Auth() {
               <Label htmlFor="password" className="text-xs">Senha</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-9" />
             </div>
-            <Button type="submit" className="w-full h-9" disabled={loading || (!isLogin && !tenant)}>
-              {loading ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}
+            <Button type="submit" className="w-full h-9" disabled={loading}>
+              {loading ? "Aguarde..." : isLogin ? "Entrar" : "Solicitar acesso"}
             </Button>
           </form>
           <div className="mt-4 text-center">
-            {(isLogin || tenant) && (
-              <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
-                {isLogin ? (tenant ? "Não tem conta? Criar uma" : "") : "Já tem conta? Entrar"}
-              </button>
-            )}
-            {!isLogin && !tenant && (
-              <p className="text-xs text-destructive">Para se cadastrar, acesse pela URL da sua empresa (ex: /t/sua-empresa/auth).</p>
-            )}
+            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+              {isLogin ? "Não tem conta? Solicitar acesso" : "Já tem conta? Entrar"}
+            </button>
           </div>
         </CardContent>
       </Card>
