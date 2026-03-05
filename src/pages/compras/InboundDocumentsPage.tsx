@@ -74,6 +74,8 @@ interface ManualItem {
   valor_unitario: string;
   impostos: string;
   frete_item: string;
+  natureza_financeira_id: string;
+  centro_custo_id: string;
 }
 
 export default function InboundDocumentsPage() {
@@ -193,7 +195,7 @@ export default function InboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, saldo_estoque, custo_medio, unidade_medida")
+        .select("id, codigo, descricao, saldo_estoque, custo_medio, unidade_medida, natureza_financeira_id, centro_custo_id")
         .eq("ativo", true)
         .is("deleted_at", null)
         .order("codigo");
@@ -353,6 +355,8 @@ export default function InboundDocumentsPage() {
         quantidade: i.quantidade,
         valor_unitario: i.valor_unitario,
         impostos: i.impostos,
+        natureza_financeira_id: (i as any).natureza_financeira_id || null,
+        centro_custo_id: (i as any).centro_custo_id || null,
       }));
 
       const { error: itemsError } = await supabase
@@ -576,6 +580,8 @@ export default function InboundDocumentsPage() {
         valor_unitario: String(p.valor_unitario),
         impostos: "0",
         frete_item: "0",
+        natureza_financeira_id: item?.natureza_financeira_id || "",
+        centro_custo_id: item?.centro_custo_id || "",
       };
     });
     setNewItems((prev) => [...prev, ...itemsToAdd]);
@@ -617,6 +623,8 @@ export default function InboundDocumentsPage() {
           quantidade: qty,
           valor_unitario: valorUnitWithFrete,
           impostos: imp,
+          natureza_financeira_id: item.natureza_financeira_id || null,
+          centro_custo_id: item.centro_custo_id || null,
         };
       });
 
