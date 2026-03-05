@@ -54,11 +54,11 @@ export default function UsersPage() {
     queryKey: ["profiles_list", isAdminGlobal, activeTenantId],
     queryFn: async () => {
       if (!activeTenantId) return [];
-      // List users linked to the active tenant via profiles.tenant_id
       const { data, error } = await supabase
         .from("profiles")
         .select("id, auth_id, nome, email, tenant_id, created_at, empresas:tenant_id(razao_social)")
         .eq("tenant_id", activeTenantId)
+        .is("deleted_at", null)
         .order("nome");
       if (error) throw error;
       return data as unknown as ProfileRow[];
@@ -92,7 +92,7 @@ export default function UsersPage() {
   const { data: userPermsMap = {} } = useQuery({
     queryKey: ["user_permissions_map"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("user_permissions").select("user_id, permission_id");
+      const { data, error } = await supabase.from("user_permissions").select("user_id, permission_id").is("deleted_at", null);
       if (error) throw error;
       const map: Record<string, string[]> = {};
       for (const r of data || []) {
@@ -175,12 +175,14 @@ export default function UsersPage() {
     mutationFn: async (u: ProfileRow) => {
       if (!user) throw new Error("Não autenticado");
       if (!u.auth_id) throw new Error("auth_id do usuário inválido");
-      // Delete user roles and profile (soft delete approach)
-      const { error: roleErr } = await supabase.from("user_roles").delete().eq("user_id", u.auth_id);
-      if (roleErr) throw roleErr;
-      const { error: permErr } = await supabase.from("user_permissions").delete().eq("user_id", u.auth_id);
-      if (permErr) throw permErr;
-      const { error: profileErr } = await supabase.from("profiles").delete().eq("auth_id", u.auth_id);
+      if (!activeTenantId) throw new Error("Tenant não identificado");
+
+      // Soft delete: mark profile as deleted
+      const { error: profileErr } = await supabase
+        .from("profiles")
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq("auth_id", u.auth_id)
+        .eq("tenant_id", activeTenantId);
       if (profileErr) throw profileErr;
     },
     onSuccess: () => {
