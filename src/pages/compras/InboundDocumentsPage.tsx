@@ -54,6 +54,8 @@ interface DocItem {
   quantidade: number;
   valor_unitario: number;
   impostos: number;
+  natureza_financeira_id?: string | null;
+  centro_custo_id?: string | null;
   items?: { codigo: string; descricao: string; unidade_medida?: string } | null;
 }
 
