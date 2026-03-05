@@ -1870,6 +1870,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      cancel_inbound_document: { Args: { _doc_id: string }; Returns: undefined }
       create_audit_log: {
         Args: {
           _acao: string
