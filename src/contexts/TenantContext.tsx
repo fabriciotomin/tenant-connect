@@ -46,13 +46,22 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       setTenantLoading(true);
       setTenantError(null);
 
-      const { data, error } = await supabase
+      // First try without status filter (for admin_global switching)
+      const { data: { session } } = await supabase.auth.getSession();
+      const isAuthenticated = !!session?.user;
+
+      let query = supabase
         .from("empresas")
         .select("id, slug, razao_social, nome_fantasia, status, plano")
         .eq("slug", slug)
-        .eq("status", "ativo")
-        .is("deleted_at", null)
-        .single();
+        .is("deleted_at", null);
+
+      // Only filter by status for unauthenticated users
+      if (!isAuthenticated) {
+        query = query.eq("status", "ativo");
+      }
+
+      const { data, error } = await query.single();
 
       if (error || !data) {
         setTenantError("Empresa não encontrada ou inativa.");
