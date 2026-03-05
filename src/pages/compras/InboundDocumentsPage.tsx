@@ -227,7 +227,8 @@ export default function InboundDocumentsPage() {
       const { data, error } = await supabase
         .from("inbound_document_items")
         .select("*, items(codigo, descricao, unidade_medida)")
-        .eq("inbound_document_id", selectedDoc!.id);
+        .eq("inbound_document_id", selectedDoc!.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return data as unknown as DocItem[];
     },
@@ -447,13 +448,16 @@ export default function InboundDocumentsPage() {
 
   const removeItemFromDoc = useMutation({
     mutationFn: async ({ itemId, docId }: { itemId: string; docId: string }) => {
-      const { error } = await supabase.from("inbound_document_items").delete().eq("id", itemId);
+      const { error } = await supabase.from("inbound_document_items")
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .eq("id", itemId);
       if (error) throw error;
 
       const { data: allDocItems } = await supabase
         .from("inbound_document_items")
         .select("quantidade, valor_unitario, impostos")
-        .eq("inbound_document_id", docId);
+        .eq("inbound_document_id", docId)
+        .is("deleted_at", null);
 
       const newTotal = (allDocItems || []).reduce(
         (sum, i) => sum + (i.quantidade ?? 0) * (i.valor_unitario ?? 0) + (i.impostos ?? 0), 0
@@ -494,7 +498,7 @@ export default function InboundDocumentsPage() {
 
     const { data, error } = await supabase
       .from("purchase_order_items")
-      .select("item_id, quantidade, valor_unitario, impostos, items(codigo, descricao)")
+      .select("item_id, quantidade, valor_unitario, impostos, natureza_financeira_id, centro_custo_id, items(codigo, descricao, natureza_financeira_id, centro_custo_id)")
       .eq("purchase_order_id", poId);
 
     if (error) {
@@ -510,6 +514,8 @@ export default function InboundDocumentsPage() {
         impostos: String(pi.impostos || 0),
         item_codigo: pi.items?.codigo || "",
         item_descricao: pi.items?.descricao || "",
+        natureza_financeira_id: pi.natureza_financeira_id || pi.items?.natureza_financeira_id || "",
+        centro_custo_id: pi.centro_custo_id || pi.items?.centro_custo_id || "",
       }))
     );
   }
@@ -541,11 +547,13 @@ export default function InboundDocumentsPage() {
 
     const mappedItems = poItems
       .filter((m) => parseFloat(m.quantidade) > 0)
-      .map((m) => ({
+      .map((m: any) => ({
         item_id: m.item_id,
         quantidade: parseFloat(m.quantidade),
         valor_unitario: parseFloat(m.valor_unitario),
         impostos: parseFloat(m.impostos || "0"),
+        natureza_financeira_id: m.natureza_financeira_id || null,
+        centro_custo_id: m.centro_custo_id || null,
       }));
 
     createDocMutation.mutate({

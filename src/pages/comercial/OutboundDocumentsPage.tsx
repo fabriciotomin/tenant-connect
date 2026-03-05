@@ -37,6 +37,7 @@ import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
 import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
+import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 
 const statusColors: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800",
@@ -65,6 +66,8 @@ interface DocItem {
   item_id: string;
   quantidade: number;
   valor_unitario: number;
+  natureza_financeira_id?: string | null;
+  centro_custo_id?: string | null;
   items?: { codigo: string; descricao: string; saldo_estoque: number } | null;
 }
 
@@ -82,6 +85,7 @@ export default function OutboundDocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState<OutboundDoc | null>(null);
 
   const { paymentConditions, paymentMethods } = usePaymentOptions();
+  const { natures, costCenters } = useFinancialClassification();
 
   const [form, setForm] = useState({
     cliente_id: "",
@@ -204,7 +208,7 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("outbound_document_items")
-        .select("id, item_id, quantidade, valor_unitario, outbound_document_id, items(codigo, descricao, saldo_estoque)")
+        .select("id, item_id, quantidade, valor_unitario, outbound_document_id, natureza_financeira_id, centro_custo_id, items(codigo, descricao, saldo_estoque)")
         .eq("outbound_document_id", selectedDoc!.id)
         .is("deleted_at", null);
       if (error) throw error;
@@ -660,6 +664,26 @@ export default function OutboundDocumentsPage() {
                         <Trash2 className="h-3 w-3" />
                       </Button>
                     </div>
+                    <div className="grid grid-cols-2 gap-2">
+                      <div>
+                        <Label className="text-2xs">Nat. Financeira</Label>
+                        <Select value={item.natureza_financeira_id} onValueChange={(v) => updateNewItem(idx, "natureza_financeira_id", v)}>
+                          <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent>
+                            {natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label className="text-2xs">Centro de Custo</Label>
+                        <Select value={item.centro_custo_id} onValueChange={(v) => updateNewItem(idx, "centro_custo_id", v)}>
+                          <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Selecione..." /></SelectTrigger>
+                          <SelectContent>
+                            {costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
                   </div>
                 );
               })}
@@ -730,13 +754,18 @@ export default function OutboundDocumentsPage() {
                          <th className="text-right p-1.5">Qtd</th>
                         <th className="text-right p-1.5">Vlr Unit</th>
                         <th className="text-right p-1.5">Subtotal</th>
+                        <th className="text-left p-1.5">Nat. Fin.</th>
+                        <th className="text-left p-1.5">C. Custo</th>
                         {selectedDoc.status === "PENDENTE" && (
                           <th className="p-1.5 w-8"></th>
                         )}
                       </tr>
                     </thead>
                     <tbody>
-                      {docItems.map((di) => (
+                      {docItems.map((di) => {
+                        const natCode = di.natureza_financeira_id ? natures.find(n => n.id === di.natureza_financeira_id) : null;
+                        const ccCode = di.centro_custo_id ? costCenters.find(c => c.id === di.centro_custo_id) : null;
+                        return (
                         <tr key={di.id} className="border-t">
                            <td className="p-1.5">
                              {di.items?.codigo} - {di.items?.descricao}
@@ -750,6 +779,12 @@ export default function OutboundDocumentsPage() {
                           </td>
                           <td className="text-right p-1.5">
                             R$ {(di.quantidade * di.valor_unitario).toFixed(2)}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {natCode ? `${natCode.codigo} - ${natCode.descricao}` : "—"}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {ccCode ? `${ccCode.codigo} - ${ccCode.descricao}` : "—"}
                           </td>
                           {selectedDoc.status === "PENDENTE" && (
                             <td className="p-1.5">
@@ -769,10 +804,11 @@ export default function OutboundDocumentsPage() {
                             </td>
                           )}
                         </tr>
-                      ))}
+                      );
+                      })}
                       {docItems.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="text-center p-4 text-muted-foreground">
+                          <td colSpan={7} className="text-center p-4 text-muted-foreground">
                             Nenhum item
                           </td>
                         </tr>
