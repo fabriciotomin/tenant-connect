@@ -16,7 +16,11 @@ interface StockMovement {
   custo_unitario: number;
   documento_origem: string | null;
   created_at: string;
+  natureza_financeira_id: string | null;
+  centro_custo_id: string | null;
   items?: { codigo: string; descricao: string; unidade_medida: string | null; tipo_item: string | null; custo_medio: number | null } | null;
+  financial_natures?: { codigo: string; descricao: string } | null;
+  cost_centers?: { codigo: string; descricao: string } | null;
 }
 
 const tipoColors: Record<string, string> = {
@@ -33,7 +37,7 @@ export default function StockMovementsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("stock_movements")
-        .select("id, tipo, quantidade, custo_unitario, documento_origem, created_at, items(codigo, descricao, unidade_medida, tipo_item, custo_medio)")
+        .select("id, tipo, quantidade, custo_unitario, documento_origem, created_at, natureza_financeira_id, centro_custo_id, items(codigo, descricao, unidade_medida, tipo_item, custo_medio), financial_natures(codigo, descricao), cost_centers(codigo, descricao)")
         .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(200);
@@ -66,6 +70,8 @@ export default function StockMovementsPage() {
     { key: "unidade_medida", label: "U.M.", render: (r: StockMovement) => r.items?.unidade_medida || "UN" },
     { key: "custo_unitario", label: "Custo Unit.", render: (r: StockMovement) => `R$ ${getCustoUnitario(r).toFixed(2)}` },
     { key: "custo_total", label: "Custo Total", render: (r: StockMovement) => `R$ ${(getCustoUnitario(r) * Number(r.quantidade)).toFixed(2)}` },
+    { key: "natureza", label: "Nat. Financeira", render: (r: StockMovement) => r.financial_natures ? `${r.financial_natures.codigo} - ${r.financial_natures.descricao}` : "—" },
+    { key: "centro_custo", label: "Centro Custo", render: (r: StockMovement) => r.cost_centers ? `${r.cost_centers.codigo} - ${r.cost_centers.descricao}` : "—" },
     { key: "documento_origem", label: "Documento", render: (r: StockMovement) => r.documento_origem || "—" },
   ];
 

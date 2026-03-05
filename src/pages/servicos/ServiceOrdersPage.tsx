@@ -4,7 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTenant } from "@/contexts/TenantContext";
 import { useUserProfile } from "@/hooks/useUserProfile";
 import { useAuth } from "@/hooks/useAuth";
-import { useFinancialClassification } from "@/hooks/useFinancialClassification";
+
 import { DataTable } from "@/components/DataTable";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { ServiceOrderDetailsDialog } from "@/components/servicos/ServiceOrderDetailsDialog";
@@ -43,7 +43,7 @@ export default function ServiceOrdersPage() {
   const { profile } = useUserProfile();
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { natures, costCenters } = useFinancialClassification();
+  
   const [open, setOpen] = useState(false);
   const [confirmId, setConfirmId] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
@@ -84,22 +84,25 @@ export default function ServiceOrdersPage() {
   });
 
   const { data: items = [] } = useQuery({
-    queryKey: ["items_select_active"],
+    queryKey: ["items_select_active_with_classification"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda").eq("ativo", true).is("deleted_at", null).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).is("deleted_at", null).order("codigo");
       if (error) throw error;
       return data;
     },
   });
 
   const handlePickerConfirm = (pickedItems: PickedItem[]) => {
-    const added = pickedItems.map((p) => ({
-      item_id: p.item_id,
-      quantidade: String(p.quantidade),
-      valor_unitario: String(p.valor_unitario),
-      natureza_financeira_id: "",
-      centro_custo_id: "",
-    }));
+    const added = pickedItems.map((p) => {
+      const itemData = items.find(i => i.id === p.item_id);
+      return {
+        item_id: p.item_id,
+        quantidade: String(p.quantidade),
+        valor_unitario: String(p.valor_unitario),
+        natureza_financeira_id: itemData?.natureza_venda_id || "",
+        centro_custo_id: itemData?.centro_custo_venda_id || "",
+      };
+    });
     setNewItems((prev) => [...prev, ...added]);
     setPickerOpen(false);
   };
@@ -327,16 +330,6 @@ export default function ServiceOrdersPage() {
                           <Trash2 className="h-3 w-3 text-destructive" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Select value={ni.natureza_financeira_id} onValueChange={(v) => { const u = [...newItems]; u[idx].natureza_financeira_id = v; setNewItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Fin." /></SelectTrigger>
-                        <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <Select value={ni.centro_custo_id} onValueChange={(v) => { const u = [...newItems]; u[idx].centro_custo_id = v; setNewItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro Custo" /></SelectTrigger>
-                        <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                      </Select>
                     </div>
                   </div>
                 );
