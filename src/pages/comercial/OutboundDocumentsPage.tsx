@@ -235,6 +235,8 @@ export default function OutboundDocumentsPage() {
           valor_total: valorTotal,
           condicao_pagamento_id: form.condicao_pagamento_id || null,
           forma_pagamento_id: form.forma_pagamento_id || null,
+          serie: form.serie || null,
+          numero_nf: form.numero_nf ? parseInt(form.numero_nf) : null,
         } as any)
         .select("id")
         .single();
@@ -506,7 +508,18 @@ export default function OutboundDocumentsPage() {
         loading={isLoading}
         searchPlaceholder="Buscar documento..."
         addLabel="Novo Documento"
-        onAdd={() => setOpenCreate(true)}
+        onAdd={() => {
+          setForm({
+            cliente_id: "",
+            data_emissao: new Date().toISOString().split("T")[0],
+            condicao_pagamento_id: "",
+            forma_pagamento_id: "",
+            serie: defaultSeries?.serie || "",
+            numero_nf: "",
+          });
+          setNewItems([]);
+          setOpenCreate(true);
+        }}
         filterFn={(r, s) =>
           (r.customers?.razao_social || "").toLowerCase().includes(s) ||
           (r.numero_nf ? String(r.numero_nf) : "").includes(s) ||
@@ -554,6 +567,35 @@ export default function OutboundDocumentsPage() {
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Série</Label>
+                <Select value={form.serie} onValueChange={(v) => {
+                  const sel = seriesList.find(s => s.serie === v);
+                  setForm({ ...form, serie: v, numero_nf: sel ? String(sel.proximo_numero) : "" });
+                }}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Série" /></SelectTrigger>
+                  <SelectContent>
+                    {seriesList.map(s => (
+                      <SelectItem key={s.id} value={s.serie || "1"} className="text-xs">
+                        {s.nome} (Série {s.serie})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Número NF</Label>
+                <Input
+                  className="h-8 text-xs"
+                  type="number"
+                  min="1"
+                  placeholder="Automático"
+                  value={form.numero_nf}
+                  onChange={(e) => setForm({ ...form, numero_nf: e.target.value })}
+                />
+                <p className="text-2xs text-muted-foreground">Deixe vazio para numeração automática</p>
+              </div>
+            </div>
               <PaymentFieldsSelect
                 condicaoId={form.condicao_pagamento_id}
                 formaId={form.forma_pagamento_id}
