@@ -48,7 +48,7 @@ export default function ItemsPage() {
 
   const emptyForm = {
     codigo: "", descricao: "", tipo_item: "REVENDA", unidade_medida: "UN",
-    preco_venda: "0", ativo: true, category_id: "",
+    preco_venda: "0", custo_servico: "0", ativo: true, category_id: "",
     natureza_financeira_id: "", centro_custo_id: "",
     natureza_venda_id: "", centro_custo_venda_id: "",
   };
@@ -130,6 +130,9 @@ export default function ItemsPage() {
         natureza_venda_id: form.natureza_venda_id || null,
         centro_custo_venda_id: form.centro_custo_venda_id || null,
       };
+      if (form.tipo_item === "SERVICO") {
+        payload.custo_medio = parseFloat(form.custo_servico) || 0;
+      }
       if (editingId) {
         const { error } = await supabase.from("items").update(payload).eq("id", editingId);
         if (error) throw error;
@@ -155,6 +158,7 @@ export default function ItemsPage() {
       tipo_item: item.tipo_item,
       unidade_medida: item.unidade_medida || "UN",
       preco_venda: String(item.preco_venda || 0),
+      custo_servico: String(item.custo_medio || 0),
       ativo: true,
       category_id: item.category_id || "",
       natureza_financeira_id: item.natureza_financeira_id || "",
@@ -173,6 +177,7 @@ export default function ItemsPage() {
       tipo_item: item.tipo_item,
       unidade_medida: item.unidade_medida || "UN",
       preco_venda: String(item.preco_venda || 0),
+      custo_servico: String(item.custo_medio || 0),
       ativo: item.ativo,
       category_id: item.category_id || "",
       natureza_financeira_id: item.natureza_financeira_id || "",
@@ -198,7 +203,7 @@ export default function ItemsPage() {
     { key: "tipo_item", label: "Tipo", render: (r: Item) => <Badge variant="outline" className="text-2xs">{tipoItemLabels[r.tipo_item] || r.tipo_item}</Badge> },
     { key: "preco_venda", label: "Preço Venda", render: (r: Item) => `R$ ${Number(r.preco_venda).toFixed(2)}` },
     { key: "saldo_estoque", label: "Saldo", render: (r: Item) => r.tipo_item === "SERVICO" ? "—" : <span className={r.saldo_estoque <= 0 ? "text-destructive" : ""}>{Number(r.saldo_estoque).toFixed(2)}</span> },
-    { key: "custo", label: "Custo Médio", render: (r: Item) => `R$ ${Number(r.custo_medio).toFixed(2)}` },
+    { key: "custo", label: "Custo", render: (r: Item) => r.tipo_item === "SERVICO" ? `R$ ${Number(r.custo_medio).toFixed(2)} (serviço)` : `R$ ${Number(r.custo_medio).toFixed(2)}` },
     { key: "ativo", label: "Status", render: (r: Item) => <Badge variant={r.ativo ? "default" : "secondary"} className="text-2xs">{r.ativo ? "Ativo" : "Inativo"}</Badge> },
     { key: "acoes", label: "", render: (r: Item) => (
       <div className="flex gap-1">
@@ -297,6 +302,14 @@ export default function ItemsPage() {
                 <Input className="h-8 text-xs" type="number" step="0.01" min="0" value={form.preco_venda} onChange={(e) => setForm({ ...form, preco_venda: e.target.value })} />
               </div>
             </div>
+
+            {form.tipo_item === "SERVICO" && (
+              <div className="space-y-1.5">
+                <Label className="text-xs">Custo do Serviço (R$)</Label>
+                <Input className="h-8 text-xs" type="number" step="0.01" min="0" value={form.custo_servico} onChange={(e) => setForm({ ...form, custo_servico: e.target.value })} />
+                <p className="text-2xs text-muted-foreground">Valor manual de custo para cálculo do CSP no DRE</p>
+              </div>
+            )}
 
             <div className="space-y-2 rounded-md border p-3">
               <p className="text-xs font-semibold text-muted-foreground">Classificação — Compra</p>
