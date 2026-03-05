@@ -18,7 +18,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2, CheckCircle2, XCircle, Shield, ChevronRight, FolderOpen, Folder } from "lucide-react";
+import { Trash2, CheckCircle2, XCircle, Shield, ChevronRight, Eye, Plus, Pencil, Trash, Package, DollarSign, ShoppingCart, TrendingUp, Wrench, BarChart3, Settings } from "lucide-react";
 
 interface ProfileRow {
   id: string;
