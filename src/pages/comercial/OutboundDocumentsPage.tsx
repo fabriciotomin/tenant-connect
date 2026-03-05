@@ -37,6 +37,7 @@ import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
 import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
+import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 
 const statusColors: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800",
@@ -65,6 +66,8 @@ interface DocItem {
   item_id: string;
   quantidade: number;
   valor_unitario: number;
+  natureza_financeira_id?: string | null;
+  centro_custo_id?: string | null;
   items?: { codigo: string; descricao: string; saldo_estoque: number } | null;
 }
 
@@ -82,6 +85,7 @@ export default function OutboundDocumentsPage() {
   const [selectedDoc, setSelectedDoc] = useState<OutboundDoc | null>(null);
 
   const { paymentConditions, paymentMethods } = usePaymentOptions();
+  const { natures, costCenters } = useFinancialClassification();
 
   const [form, setForm] = useState({
     cliente_id: "",
@@ -204,7 +208,7 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("outbound_document_items")
-        .select("id, item_id, quantidade, valor_unitario, outbound_document_id, items(codigo, descricao, saldo_estoque)")
+        .select("id, item_id, quantidade, valor_unitario, outbound_document_id, natureza_financeira_id, centro_custo_id, items(codigo, descricao, saldo_estoque)")
         .eq("outbound_document_id", selectedDoc!.id)
         .is("deleted_at", null);
       if (error) throw error;
