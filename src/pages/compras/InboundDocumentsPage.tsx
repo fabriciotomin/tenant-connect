@@ -376,48 +376,24 @@ export default function InboundDocumentsPage() {
     onError: (e: any) => toast.error(`Erro ao confirmar: ${e.message}`),
   });
 
-  const cancelPendenteMutation = useMutation({
+  const cancelDocMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const { error: delErr } = await supabase
-        .from("inbound_document_items")
-        .delete()
-        .eq("inbound_document_id", docId);
-      if (delErr) throw delErr;
-
-      const { error } = await supabase
-        .from("inbound_documents")
-        .update({ status: "CANCELADO" as any })
-        .eq("id", docId)
-        .eq("status", "PENDENTE" as any);
-      if (error) throw error;
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["inbound_documents"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase_orders_open"] });
-      queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
-      setCancelDialogId(null);
-      setOpenDetail(false);
-      toast.success("Documento pendente cancelado");
-    },
-    onError: (e: any) => toast.error(e.message),
-  });
-
-  const cancelConfirmadoMutation = useMutation({
-    mutationFn: async (docId: string) => {
-      // For confirmed docs, just update status (no special RPC available)
-      const { error } = await supabase
-        .from("inbound_documents")
-        .update({ status: "CANCELADO" as any })
-        .eq("id", docId);
+      const { error } = await supabase.rpc("cancel_inbound_document", {
+        _doc_id: docId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["inbound_documents"] });
       queryClient.invalidateQueries({ queryKey: ["items_select"] });
+      queryClient.invalidateQueries({ queryKey: ["items_select_active"] });
       queryClient.invalidateQueries({ queryKey: ["accounts_payable"] });
+      queryClient.invalidateQueries({ queryKey: ["stock_movements"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase_orders_open"] });
+      queryClient.invalidateQueries({ queryKey: ["purchase_orders"] });
       setCancelDialogId(null);
       setOpenDetail(false);
-      toast.success("Documento cancelado");
+      toast.success("Documento cancelado com estorno de estoque e financeiro.");
     },
     onError: (e: any) => toast.error(`Erro ao cancelar: ${e.message}`),
   });
@@ -1110,12 +1086,8 @@ export default function InboundDocumentsPage() {
             <AlertDialogAction
               className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90"
               onClick={() => {
-                if (!cancelDialogId) return;
-                const doc = docs.find((d) => d.id === cancelDialogId);
-                if (doc?.status === "PROCESSADO") {
-                  cancelConfirmadoMutation.mutate(cancelDialogId);
-                } else {
-                  cancelPendenteMutation.mutate(cancelDialogId);
+                if (cancelDialogId) {
+                  cancelDocMutation.mutate(cancelDialogId);
                 }
               }}
             >
