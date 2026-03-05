@@ -12,8 +12,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Trash2 } from "lucide-react";
+import { Trash2, CheckCircle2, XCircle } from "lucide-react";
 
 interface ProfileRow {
   id: string;
@@ -21,6 +22,7 @@ interface ProfileRow {
   nome: string;
   email: string;
   tenant_id: string | null;
+  status: string;
   created_at: string;
   empresas?: { razao_social: string } | null;
 }
@@ -32,10 +34,28 @@ interface Permission {
   description: string | null;
 }
 
+interface Empresa {
+  id: string;
+  razao_social: string;
+  slug: string;
+}
+
 const roleLabel: Record<string, string> = {
   admin_global: "Admin Global",
   admin_empresa: "Admin Empresa",
   usuario: "Usuário",
+};
+
+const statusLabel: Record<string, string> = {
+  ATIVO: "Ativo",
+  PENDENTE_APROVACAO: "Pendente",
+  INATIVO: "Inativo",
+};
+
+const statusVariant: Record<string, "default" | "secondary" | "destructive" | "outline"> = {
+  ATIVO: "default",
+  PENDENTE_APROVACAO: "outline",
+  INATIVO: "destructive",
 };
 
 export default function UsersPage() {
@@ -45,25 +65,73 @@ export default function UsersPage() {
   const queryClient = useQueryClient();
   const [editUser, setEditUser] = useState<ProfileRow | null>(null);
   const [deleteUser, setDeleteUser] = useState<ProfileRow | null>(null);
+  const [approveUser, setApproveUser] = useState<ProfileRow | null>(null);
   const [selectedRole, setSelectedRole] = useState<string>("usuario");
   const [selectedPerms, setSelectedPerms] = useState<Set<string>>(new Set());
+  const [approveTenantId, setApproveTenantId] = useState<string>("");
+  const [duplicateWarning, setDuplicateWarning] = useState<string | null>(null);
 
   const activeTenantId = tenant?.id || profile?.tenant_id;
+  const canManageUsers = isAdminGlobal || isAdminEmpresa();
 
+  // Fetch active users (for current tenant or all for admin_global)
   const { data: users = [], isLoading } = useQuery({
     queryKey: ["profiles_list", isAdminGlobal, activeTenantId],
     queryFn: async () => {
-      if (!activeTenantId) return [];
-      const { data, error } = await supabase
+      if (!activeTenantId && !isAdminGlobal) return [];
+      let query = supabase
         .from("profiles")
-        .select("id, auth_id, nome, email, tenant_id, created_at, empresas:tenant_id(razao_social)")
-        .eq("tenant_id", activeTenantId)
+        .select("id, auth_id, nome, email, tenant_id, created_at, status, empresas:tenant_id(razao_social)")
         .is("deleted_at", null)
+        .eq("status", "ATIVO" as any)
         .order("nome");
+      
+      if (!isAdminGlobal && activeTenantId) {
+        query = query.eq("tenant_id", activeTenantId);
+      }
+      const { data, error } = await query;
       if (error) throw error;
       return data as unknown as ProfileRow[];
     },
-    enabled: !!profile && !!activeTenantId,
+    enabled: !!profile,
+  });
+
+  // Fetch pending users
+  const { data: pendingUsers = [], isLoading: pendingLoading } = useQuery({
+    queryKey: ["profiles_pending", isAdminGlobal, activeTenantId],
+    queryFn: async () => {
+      let query = supabase
+        .from("profiles")
+        .select("id, auth_id, nome, email, tenant_id, created_at, status, empresas:tenant_id(razao_social)")
+        .is("deleted_at", null)
+        .eq("status", "PENDENTE_APROVACAO" as any)
+        .order("created_at", { ascending: false });
+      
+      // admin_global sees all pending, admin_empresa sees only their tenant's
+      if (!isAdminGlobal && activeTenantId) {
+        query = query.eq("tenant_id", activeTenantId);
+      }
+      const { data, error } = await query;
+      if (error) throw error;
+      return data as unknown as ProfileRow[];
+    },
+    enabled: !!profile && canManageUsers,
+  });
+
+  // Fetch all empresas for approval dropdown (admin_global only)
+  const { data: empresas = [] } = useQuery({
+    queryKey: ["empresas_list_approval"],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from("empresas")
+        .select("id, razao_social, slug")
+        .is("deleted_at", null)
+        .eq("status", "ativo")
+        .order("razao_social");
+      if (error) throw error;
+      return data as Empresa[];
+    },
+    enabled: isAdminGlobal,
   });
 
   const { data: rolesMap = {} } = useQuery({
@@ -103,8 +171,74 @@ export default function UsersPage() {
     },
   });
 
-  const canManageUsers = isAdminGlobal || isAdminEmpresa();
+  // --- Approval ---
+  const openApprove = (u: ProfileRow) => {
+    setApproveUser(u);
+    setApproveTenantId(u.tenant_id || "");
+    setDuplicateWarning(null);
+  };
 
+  const checkDuplicate = async (tenantId: string, email: string) => {
+    const { data } = await supabase
+      .from("profiles")
+      .select("id, status")
+      .eq("tenant_id", tenantId)
+      .eq("email", email)
+      .eq("status", "ATIVO" as any)
+      .is("deleted_at", null);
+    
+    if (data && data.length > 0) {
+      setDuplicateWarning(`Já existe um usuário ativo com este e-mail nesta empresa.`);
+    } else {
+      setDuplicateWarning(null);
+    }
+  };
+
+  const handleTenantSelect = (tenantId: string) => {
+    setApproveTenantId(tenantId);
+    if (approveUser) {
+      checkDuplicate(tenantId, approveUser.email);
+    }
+  };
+
+  const approveMutation = useMutation({
+    mutationFn: async () => {
+      if (!approveUser) return;
+      const tenantId = isAdminGlobal ? approveTenantId : activeTenantId;
+      if (!tenantId) throw new Error("Selecione uma empresa para vincular o usuário.");
+      if (duplicateWarning) throw new Error(duplicateWarning);
+
+      const { error } = await supabase
+        .from("profiles")
+        .update({ status: "ATIVO", tenant_id: tenantId } as any)
+        .eq("id", approveUser.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles_list"] });
+      queryClient.invalidateQueries({ queryKey: ["profiles_pending"] });
+      setApproveUser(null);
+      toast.success("Usuário aprovado com sucesso!");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  const rejectMutation = useMutation({
+    mutationFn: async (u: ProfileRow) => {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ status: "INATIVO", deleted_at: new Date().toISOString() } as any)
+        .eq("id", u.id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["profiles_pending"] });
+      toast.success("Cadastro rejeitado.");
+    },
+    onError: (e: any) => toast.error(e.message),
+  });
+
+  // --- Edit Permissions ---
   const openEdit = (u: ProfileRow) => {
     const userRoles = rolesMap[u.auth_id] || [];
     const currentRole = userRoles.includes("admin_empresa") ? "admin_empresa" : "usuario";
@@ -118,10 +252,7 @@ export default function UsersPage() {
       if (!editUser) return;
       const authId = editUser.auth_id;
       const tenantId = editUser.tenant_id || activeTenantId;
-
-      if (!tenantId) {
-        throw new Error("Tenant não identificado. Selecione uma empresa.");
-      }
+      if (!tenantId) throw new Error("Tenant não identificado.");
 
       const targetRoles = rolesMap[authId] || [];
       if (targetRoles.includes("admin_global")) {
@@ -174,27 +305,21 @@ export default function UsersPage() {
   const deleteMutation = useMutation({
     mutationFn: async (u: ProfileRow) => {
       if (!user) throw new Error("Não autenticado");
-      if (!u.auth_id) throw new Error("auth_id do usuário inválido");
-      if (!activeTenantId) throw new Error("Tenant não identificado");
-
-      // Soft delete: mark profile as deleted
-      const { error: profileErr } = await supabase
+      const { error } = await supabase
         .from("profiles")
-        .update({ deleted_at: new Date().toISOString() } as any)
-        .eq("auth_id", u.auth_id)
-        .eq("tenant_id", activeTenantId);
-      if (profileErr) throw profileErr;
+        .update({ deleted_at: new Date().toISOString(), status: "INATIVO" } as any)
+        .eq("id", u.id);
+      if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["profiles_list"] });
-      queryClient.invalidateQueries({ queryKey: ["user_roles_map"] });
-      queryClient.invalidateQueries({ queryKey: ["user_permissions_map"] });
       setDeleteUser(null);
       toast.success("Usuário excluído com sucesso");
     },
     onError: (e: any) => toast.error(e.message),
   });
 
+  // --- Permission helpers ---
   const togglePerm = (permId: string) => {
     setSelectedPerms((prev) => {
       const next = new Set(prev);
@@ -215,11 +340,7 @@ export default function UsersPage() {
   const someSelected = allPermIds.some((id) => selectedPerms.has(id));
 
   const toggleAll = () => {
-    if (allSelected) {
-      setSelectedPerms(new Set());
-    } else {
-      setSelectedPerms(new Set(allPermIds));
-    }
+    setSelectedPerms(allSelected ? new Set() : new Set(allPermIds));
   };
 
   const toggleModule = (modulePerms: Permission[]) => {
@@ -244,7 +365,8 @@ export default function UsersPage() {
     return "indeterminate";
   };
 
-  const columns = [
+  // --- Columns ---
+  const activeColumns = [
     { key: "nome", label: "Nome" },
     { key: "email", label: "E-mail" },
     {
@@ -292,25 +414,134 @@ export default function UsersPage() {
       : []),
   ];
 
+  const pendingColumns = [
+    { key: "nome", label: "Nome" },
+    { key: "email", label: "E-mail" },
+    {
+      key: "empresa_solicitada",
+      label: "Empresa solicitada",
+      render: (r: ProfileRow) => r.empresas?.razao_social || "Não definida",
+    },
+    {
+      key: "data",
+      label: "Data",
+      render: (r: ProfileRow) => new Date(r.created_at).toLocaleDateString("pt-BR"),
+    },
+    {
+      key: "acoes",
+      label: "Ações",
+      render: (r: ProfileRow) => (
+        <div className="flex gap-1">
+          <Button variant="ghost" size="sm" className="h-6 text-2xs px-2 text-green-600 hover:text-green-700" onClick={(e) => { e.stopPropagation(); openApprove(r); }}>
+            <CheckCircle2 className="h-3 w-3 mr-1" /> Aprovar
+          </Button>
+          <Button variant="ghost" size="sm" className="h-6 text-2xs px-2 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); rejectMutation.mutate(r); }}>
+            <XCircle className="h-3 w-3 mr-1" /> Rejeitar
+          </Button>
+        </div>
+      ),
+    },
+  ];
+
   return (
     <div className="space-y-4">
       <div>
         <h1 className="text-lg font-semibold">Usuários</h1>
         <p className="text-xs text-muted-foreground">
-          {isAdminGlobal ? "Todos os usuários do sistema" : "Usuários da sua empresa"}
+          {isAdminGlobal ? "Gestão global de usuários" : "Usuários da sua empresa"}
         </p>
       </div>
 
-      <DataTable
-        columns={columns}
-        data={users}
-        loading={isLoading}
-        searchPlaceholder="Buscar usuário..."
-        filterFn={(r, s) =>
-          r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)
-        }
-      />
+      {canManageUsers ? (
+        <Tabs defaultValue="ativos">
+          <TabsList>
+            <TabsTrigger value="ativos" className="text-xs">
+              Ativos ({users.length})
+            </TabsTrigger>
+            <TabsTrigger value="pendentes" className="text-xs">
+              Pendentes ({pendingUsers.length})
+              {pendingUsers.length > 0 && (
+                <Badge variant="destructive" className="ml-1.5 text-2xs h-4 px-1">{pendingUsers.length}</Badge>
+              )}
+            </TabsTrigger>
+          </TabsList>
+          <TabsContent value="ativos">
+            <DataTable
+              columns={activeColumns}
+              data={users}
+              loading={isLoading}
+              searchPlaceholder="Buscar usuário..."
+              filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
+            />
+          </TabsContent>
+          <TabsContent value="pendentes">
+            <DataTable
+              columns={pendingColumns}
+              data={pendingUsers}
+              loading={pendingLoading}
+              searchPlaceholder="Buscar pendente..."
+              filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
+            />
+          </TabsContent>
+        </Tabs>
+      ) : (
+        <DataTable
+          columns={activeColumns}
+          data={users}
+          loading={isLoading}
+          searchPlaceholder="Buscar usuário..."
+          filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
+        />
+      )}
 
+      {/* Approve Dialog */}
+      <Dialog open={!!approveUser} onOpenChange={(open) => !open && setApproveUser(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-sm">Aprovar Usuário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="text-xs space-y-1">
+              <p><strong>Nome:</strong> {approveUser?.nome}</p>
+              <p><strong>E-mail:</strong> {approveUser?.email}</p>
+            </div>
+
+            {isAdminGlobal ? (
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium">Vincular à empresa *</Label>
+                <Select value={approveTenantId} onValueChange={handleTenantSelect}>
+                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Selecione a empresa" /></SelectTrigger>
+                  <SelectContent>
+                    {empresas.map((e) => (
+                      <SelectItem key={e.id} value={e.id} className="text-xs">{e.razao_social}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {duplicateWarning && (
+                  <p className="text-xs text-destructive">{duplicateWarning}</p>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">
+                O usuário será vinculado à empresa: <strong>{tenant?.razao_social}</strong>
+              </p>
+            )}
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button variant="outline" size="sm" onClick={() => setApproveUser(null)}>Cancelar</Button>
+              <Button
+                size="sm"
+                disabled={approveMutation.isPending || (isAdminGlobal && !approveTenantId) || !!duplicateWarning}
+                onClick={() => approveMutation.mutate()}
+              >
+                {approveMutation.isPending ? "Aprovando..." : "Aprovar e ativar"}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Permissions Dialog */}
       <Dialog open={!!editUser} onOpenChange={(open) => !open && setEditUser(null)}>
         <DialogContent className="sm:max-w-lg max-h-[80vh] overflow-y-auto">
           <DialogHeader>
@@ -378,13 +609,13 @@ export default function UsersPage() {
         </DialogContent>
       </Dialog>
 
+      {/* Delete Dialog */}
       <AlertDialog open={!!deleteUser} onOpenChange={(open) => !open && setDeleteUser(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>Excluir usuário</AlertDialogTitle>
             <AlertDialogDescription>
               Tem certeza que deseja excluir <strong>{deleteUser?.nome}</strong> ({deleteUser?.email})?
-              Esta ação só será permitida se o usuário não possuir registros vinculados no sistema.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
