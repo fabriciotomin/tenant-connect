@@ -26,6 +26,7 @@ interface AR {
   id: string;
   documento_origem: string | null;
   data_vencimento: string;
+  created_at: string | null;
   valor: number;
   status: string;
   cliente_id: string | null;
