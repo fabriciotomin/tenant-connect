@@ -28,8 +28,8 @@ export function AppLayout() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("empresas")
-        .select("id, slug, razao_social, nome_fantasia")
-        .eq("status", "ativo")
+        .select("id, slug, razao_social, nome_fantasia, status")
+        .is("deleted_at", null)
         .order("razao_social");
       if (error) throw error;
       return data;
@@ -64,7 +64,7 @@ export function AppLayout() {
           <header className="h-10 border-b flex items-center justify-between px-2 bg-card shrink-0">
             <div className="flex items-center gap-1">
               <SidebarTrigger className="h-7 w-7" />
-              {isAdminGlobal && empresas.length > 1 && (
+              {isAdminGlobal && empresas.length > 0 && (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
                     <Button variant="ghost" size="sm" className="h-7 gap-1 text-xs ml-1">
