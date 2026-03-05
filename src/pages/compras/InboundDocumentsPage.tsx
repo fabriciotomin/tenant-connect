@@ -227,7 +227,8 @@ export default function InboundDocumentsPage() {
       const { data, error } = await supabase
         .from("inbound_document_items")
         .select("*, items(codigo, descricao, unidade_medida)")
-        .eq("inbound_document_id", selectedDoc!.id);
+        .eq("inbound_document_id", selectedDoc!.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return data as unknown as DocItem[];
     },
