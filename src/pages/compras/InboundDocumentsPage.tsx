@@ -231,16 +231,34 @@ export default function InboundDocumentsPage() {
     },
   });
 
+  const docPayableRef = selectedDoc ? `NE-${selectedDoc.numero || selectedDoc.id}` : "";
+
   const { data: docPayables = [] } = useQuery({
-    queryKey: ["doc_payables", selectedDoc?.id],
+    queryKey: ["doc_payables", selectedDoc?.id, docPayableRef],
     enabled: !!selectedDoc && selectedDoc.status === "PROCESSADO",
     queryFn: async () => {
       const { data, error } = await supabase
         .from("accounts_payable")
         .select("id, valor, data_vencimento, status, descricao")
-        .eq("supplier_id", selectedDoc!.fornecedor_id);
+        .eq("supplier_id", selectedDoc!.fornecedor_id)
+        .eq("descricao", docPayableRef)
+        .is("deleted_at", null);
       if (error) throw error;
       return data || [];
+    },
+  });
+
+  const { data: linkedPOFrete } = useQuery({
+    queryKey: ["po_frete", selectedDoc?.purchase_order_id],
+    enabled: !!selectedDoc?.purchase_order_id,
+    queryFn: async () => {
+      const { data } = await supabase
+        .from("purchase_orders")
+        .select("valor_frete, numero_sequencial")
+        .eq("id", selectedDoc!.purchase_order_id!)
+        .is("deleted_at", null)
+        .single();
+      return data;
     },
   });
 
@@ -936,7 +954,8 @@ export default function InboundDocumentsPage() {
                   <div><span className="text-muted-foreground">Número:</span> {selectedDoc.numero || "—"}</div>
                   <div><span className="text-muted-foreground">Série:</span> {selectedDoc.serie || "—"}</div>
                   <div><span className="text-muted-foreground">Chave:</span> {selectedDoc.chave_acesso ? selectedDoc.chave_acesso.slice(0, 20) + "..." : "—"}</div>
-                  <div><span className="text-muted-foreground">PO:</span> {selectedDoc.purchase_order_id ? selectedDoc.purchase_order_id.slice(0, 8) + "..." : "—"}</div>
+                  <div><span className="text-muted-foreground">Pedido:</span> {selectedDoc.purchase_orders?.numero_sequencial ? `PC-${selectedDoc.purchase_orders.numero_sequencial}` : "—"}</div>
+                  <div><span className="text-muted-foreground">Frete:</span> R$ {Number(linkedPOFrete?.valor_frete || 0).toFixed(2)}</div>
                   <div><span className="text-muted-foreground">Total:</span> R$ {Number(selectedDoc.valor_total).toFixed(2)}</div>
                 </div>
               </TabsContent>
