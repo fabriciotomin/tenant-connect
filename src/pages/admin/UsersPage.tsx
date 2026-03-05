@@ -249,7 +249,15 @@ export default function UsersPage() {
     const currentRole = userRoles.includes("admin_empresa") ? "admin_empresa" : "usuario";
     setSelectedRole(currentRole);
     setSelectedPerms(new Set(userPermsMap[u.auth_id] || []));
-    setExpandedModules(new Set(Object.keys(permsByModule)));
+    // Expand all parent modules and sub-features
+    const allKeys = new Set<string>();
+    for (const [parent, subs] of Object.entries(permTree)) {
+      allKeys.add(parent);
+      for (const sub of Object.keys(subs)) {
+        allKeys.add(`${parent}::${sub}`);
+      }
+    }
+    setExpandedModules(allKeys);
     setEditUser(u);
   };
 
@@ -335,11 +343,32 @@ export default function UsersPage() {
     });
   };
 
+  // Group permissions into Parent Module > Sub-feature > Actions
   const permsByModule = allPermissions.reduce<Record<string, Permission[]>>((acc, p) => {
     if (!acc[p.module]) acc[p.module] = [];
     acc[p.module].push(p);
     return acc;
   }, {});
+
+  // Build hierarchical structure: Parent > Sub-feature > perms
+  const buildTree = () => {
+    const tree: Record<string, Record<string, Permission[]>> = {};
+    for (const [mod, perms] of Object.entries(permsByModule)) {
+      const parts = mod.split(' - ');
+      const parent = parts[0];
+      const sub = parts.length > 1 ? parts.slice(1).join(' - ') : parent;
+      if (!tree[parent]) tree[parent] = {};
+      if (!tree[parent][sub]) tree[parent][sub] = [];
+      tree[parent][sub].push(...perms);
+    }
+    return tree;
+  };
+  const permTree = buildTree();
+
+  const getSubPerms = (parent: string) => {
+    const subs = permTree[parent] || {};
+    return Object.values(subs).flat();
+  };
 
   const allPermIds = allPermissions.map((p) => p.id);
   const allSelected = allPermIds.length > 0 && allPermIds.every((id) => selectedPerms.has(id));
@@ -587,22 +616,23 @@ export default function UsersPage() {
               </div>
 
               {/* Modules tree */}
-              {Object.keys(permsByModule).length === 0 ? (
+              {Object.keys(permTree).length === 0 ? (
                 <p className="text-xs text-muted-foreground text-center py-8">
                   Nenhuma permissão cadastrada no sistema.
                 </p>
               ) : (
                 <div className="border rounded-md overflow-hidden">
-                  {Object.entries(permsByModule).map(([mod, perms], idx) => {
-                    const modState = getModuleCheckState(perms);
-                    const isExpanded = expandedModules.has(mod);
-                    const selectedCount = perms.filter(p => selectedPerms.has(p.id)).length;
+                  {Object.entries(permTree).map(([parent, subs], parentIdx) => {
+                    const parentPerms = getSubPerms(parent);
+                    const parentState = getModuleCheckState(parentPerms);
+                    const isParentExpanded = expandedModules.has(parent);
+                    const parentSelected = parentPerms.filter(p => selectedPerms.has(p.id)).length;
                     const moduleIcons: Record<string, React.ReactNode> = {
                       'Cadastros': <Settings className="h-3.5 w-3.5" />,
                       'Estoque': <Package className="h-3.5 w-3.5" />,
                       'Financeiro': <DollarSign className="h-3.5 w-3.5" />,
                       'Compras': <ShoppingCart className="h-3.5 w-3.5" />,
-                      'Vendas': <TrendingUp className="h-3.5 w-3.5" />,
+                      'Comercial': <TrendingUp className="h-3.5 w-3.5" />,
                       'Serviços': <Wrench className="h-3.5 w-3.5" />,
                       'Controladoria': <BarChart3 className="h-3.5 w-3.5" />,
                       'Administração': <Shield className="h-3.5 w-3.5" />,
@@ -612,53 +642,103 @@ export default function UsersPage() {
                       'Criar': <Plus className="h-3 w-3 text-muted-foreground" />,
                       'Editar': <Pencil className="h-3 w-3 text-muted-foreground" />,
                       'Excluir': <Trash className="h-3 w-3 text-muted-foreground" />,
+                      'Processar': <CheckCircle2 className="h-3 w-3 text-muted-foreground" />,
+                      'Cancelar': <XCircle className="h-3 w-3 text-muted-foreground" />,
+                      'Confirmar': <CheckCircle2 className="h-3 w-3 text-muted-foreground" />,
+                      'Baixar': <DollarSign className="h-3 w-3 text-muted-foreground" />,
+                      'Aprovar': <CheckCircle2 className="h-3 w-3 text-muted-foreground" />,
+                      'Editar Permissões': <Shield className="h-3 w-3 text-muted-foreground" />,
                     };
 
                     return (
                       <Collapsible
-                        key={mod}
-                        open={isExpanded}
+                        key={parent}
+                        open={isParentExpanded}
                         onOpenChange={(open) => {
                           setExpandedModules(prev => {
                             const next = new Set(prev);
-                            open ? next.add(mod) : next.delete(mod);
+                            open ? next.add(parent) : next.delete(parent);
                             return next;
                           });
                         }}
                       >
+                        {/* Level 1: Parent Module */}
                         <CollapsibleTrigger asChild>
                           <button
                             type="button"
-                            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors ${idx > 0 ? 'border-t' : ''}`}
+                            className={`w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-accent/50 transition-colors ${parentIdx > 0 ? 'border-t' : ''}`}
                           >
                             <Checkbox
-                              checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
-                              onCheckedChange={() => toggleModule(perms)}
+                              checked={parentState === "checked" ? true : parentState === "indeterminate" ? "indeterminate" : false}
+                              onCheckedChange={() => toggleModule(parentPerms)}
                               onClick={(e) => e.stopPropagation()}
                             />
-                            <ChevronRight className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`} />
-                            <span className="text-primary">{moduleIcons[mod] || <Package className="h-3.5 w-3.5" />}</span>
-                            <span className="text-xs font-semibold flex-1">{mod}</span>
-                            <Badge variant={selectedCount === perms.length ? "default" : selectedCount > 0 ? "secondary" : "outline"} className="text-[10px] h-4 px-1.5 tabular-nums">
-                              {selectedCount}/{perms.length}
+                            <ChevronRight className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 ${isParentExpanded ? 'rotate-90' : ''}`} />
+                            <span className="text-primary">{moduleIcons[parent] || <Package className="h-3.5 w-3.5" />}</span>
+                            <span className="text-xs font-bold flex-1">{parent}</span>
+                            <Badge variant={parentSelected === parentPerms.length ? "default" : parentSelected > 0 ? "secondary" : "outline"} className="text-[10px] h-4 px-1.5 tabular-nums">
+                              {parentSelected}/{parentPerms.length}
                             </Badge>
                           </button>
                         </CollapsibleTrigger>
                         <CollapsibleContent>
-                          <div className="bg-muted/30 border-t">
-                            {perms.map((p) => (
-                              <label
-                                key={p.id}
-                                className="flex items-center gap-2 pl-10 pr-3 py-1.5 text-xs cursor-pointer hover:bg-accent/30 transition-colors"
-                              >
-                                <Checkbox
-                                  checked={selectedPerms.has(p.id)}
-                                  onCheckedChange={() => togglePerm(p.id)}
-                                />
-                                {actionIcons[p.action] || <Eye className="h-3 w-3 text-muted-foreground" />}
-                                <span>{p.action}</span>
-                              </label>
-                            ))}
+                          <div className="border-t bg-muted/20">
+                            {Object.entries(subs).map(([subName, subPerms]) => {
+                              const subState = getModuleCheckState(subPerms);
+                              const subKey = `${parent}::${subName}`;
+                              const isSubExpanded = expandedModules.has(subKey);
+                              const subSelected = subPerms.filter(p => selectedPerms.has(p.id)).length;
+
+                              return (
+                                <Collapsible
+                                  key={subKey}
+                                  open={isSubExpanded}
+                                  onOpenChange={(open) => {
+                                    setExpandedModules(prev => {
+                                      const next = new Set(prev);
+                                      open ? next.add(subKey) : next.delete(subKey);
+                                      return next;
+                                    });
+                                  }}
+                                >
+                                  {/* Level 2: Sub-feature */}
+                                  <CollapsibleTrigger asChild>
+                                    <button
+                                      type="button"
+                                      className="w-full flex items-center gap-2 pl-8 pr-3 py-1.5 text-left hover:bg-accent/40 transition-colors"
+                                    >
+                                      <Checkbox
+                                        checked={subState === "checked" ? true : subState === "indeterminate" ? "indeterminate" : false}
+                                        onCheckedChange={() => toggleModule(subPerms)}
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <ChevronRight className={`h-2.5 w-2.5 shrink-0 text-muted-foreground transition-transform duration-150 ${isSubExpanded ? 'rotate-90' : ''}`} />
+                                      <span className="text-xs font-medium flex-1">{subName}</span>
+                                      <span className="text-[10px] text-muted-foreground tabular-nums">{subSelected}/{subPerms.length}</span>
+                                    </button>
+                                  </CollapsibleTrigger>
+                                  <CollapsibleContent>
+                                    {/* Level 3: Actions */}
+                                    <div className="bg-muted/30">
+                                      {subPerms.map((p) => (
+                                        <label
+                                          key={p.id}
+                                          className="flex items-center gap-2 pl-14 pr-3 py-1 text-xs cursor-pointer hover:bg-accent/30 transition-colors"
+                                        >
+                                          <Checkbox
+                                            checked={selectedPerms.has(p.id)}
+                                            onCheckedChange={() => togglePerm(p.id)}
+                                          />
+                                          {actionIcons[p.action] || <Eye className="h-3 w-3 text-muted-foreground" />}
+                                          <span>{p.action}</span>
+                                          {p.description && <span className="text-muted-foreground ml-1 hidden sm:inline">— {p.description}</span>}
+                                        </label>
+                                      ))}
+                                    </div>
+                                  </CollapsibleContent>
+                                </Collapsible>
+                              );
+                            })}
                           </div>
                         </CollapsibleContent>
                       </Collapsible>
