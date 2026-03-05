@@ -641,39 +641,52 @@ export type Database = {
       }
       inbound_document_items: {
         Row: {
+          centro_custo_id: string | null
           created_at: string | null
           deleted_at: string | null
           id: string
           impostos: number | null
           inbound_document_id: string | null
           item_id: string | null
+          natureza_financeira_id: string | null
           quantidade: number | null
           tenant_id: string | null
           valor_unitario: number | null
         }
         Insert: {
+          centro_custo_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
           impostos?: number | null
           inbound_document_id?: string | null
           item_id?: string | null
+          natureza_financeira_id?: string | null
           quantidade?: number | null
           tenant_id?: string | null
           valor_unitario?: number | null
         }
         Update: {
+          centro_custo_id?: string | null
           created_at?: string | null
           deleted_at?: string | null
           id?: string
           impostos?: number | null
           inbound_document_id?: string | null
           item_id?: string | null
+          natureza_financeira_id?: string | null
           quantidade?: number | null
           tenant_id?: string | null
           valor_unitario?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "inbound_document_items_centro_custo_id_fkey"
+            columns: ["centro_custo_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "inbound_document_items_inbound_document_id_fkey"
             columns: ["inbound_document_id"]
@@ -686,6 +699,13 @@ export type Database = {
             columns: ["item_id"]
             isOneToOne: false
             referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "inbound_document_items_natureza_financeira_id_fkey"
+            columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
             referencedColumns: ["id"]
           },
           {
