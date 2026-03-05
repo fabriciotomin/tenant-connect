@@ -14,7 +14,7 @@ interface UserRole {
 }
 
 export function useUserProfile() {
-  const { user } = useAuth();
+  const { user, signOut } = useAuth();
   const [profile, setProfile] = useState<UserProfile | null>(null);
   const [roles, setRoles] = useState<UserRole[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,13 +30,25 @@ export function useUserProfile() {
     const fetchProfile = async () => {
       const { data: profileData } = await supabase
         .from("profiles")
-        .select("id, tenant_id, nome, email")
+        .select("id, tenant_id, nome, email, deleted_at")
         .eq("auth_id", user.id)
         .single();
 
-      if (profileData) {
-        setProfile(profileData);
+      // If profile is soft-deleted, force sign out
+      if (!profileData || profileData.deleted_at) {
+        setProfile(null);
+        setRoles([]);
+        setLoading(false);
+        await signOut();
+        return;
       }
+
+      setProfile({
+        id: profileData.id,
+        tenant_id: profileData.tenant_id,
+        nome: profileData.nome,
+        email: profileData.email,
+      });
 
       const { data: rolesData } = await supabase
         .from("user_roles")
