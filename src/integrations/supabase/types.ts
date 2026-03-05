@@ -764,12 +764,14 @@ export type Database = {
           ativo: boolean | null
           category_id: string | null
           centro_custo_id: string | null
+          centro_custo_venda_id: string | null
           codigo: string
           created_at: string | null
           custo_medio: number | null
           descricao: string
           id: string
           natureza_financeira_id: string | null
+          natureza_venda_id: string | null
           preco_venda: number | null
           saldo_estoque: number | null
           tenant_id: string
@@ -780,12 +782,14 @@ export type Database = {
           ativo?: boolean | null
           category_id?: string | null
           centro_custo_id?: string | null
+          centro_custo_venda_id?: string | null
           codigo: string
           created_at?: string | null
           custo_medio?: number | null
           descricao: string
           id?: string
           natureza_financeira_id?: string | null
+          natureza_venda_id?: string | null
           preco_venda?: number | null
           saldo_estoque?: number | null
           tenant_id: string
@@ -796,12 +800,14 @@ export type Database = {
           ativo?: boolean | null
           category_id?: string | null
           centro_custo_id?: string | null
+          centro_custo_venda_id?: string | null
           codigo?: string
           created_at?: string | null
           custo_medio?: number | null
           descricao?: string
           id?: string
           natureza_financeira_id?: string | null
+          natureza_venda_id?: string | null
           preco_venda?: number | null
           saldo_estoque?: number | null
           tenant_id?: string
@@ -824,8 +830,22 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "items_centro_custo_venda_id_fkey"
+            columns: ["centro_custo_venda_id"]
+            isOneToOne: false
+            referencedRelation: "cost_centers"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "items_natureza_financeira_id_fkey"
             columns: ["natureza_financeira_id"]
+            isOneToOne: false
+            referencedRelation: "financial_natures"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_natureza_venda_id_fkey"
+            columns: ["natureza_venda_id"]
             isOneToOne: false
             referencedRelation: "financial_natures"
             referencedColumns: ["id"]

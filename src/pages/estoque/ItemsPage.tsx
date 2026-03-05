@@ -33,6 +33,8 @@ interface Item {
   category_id: string | null;
   natureza_financeira_id: string | null;
   centro_custo_id: string | null;
+  natureza_venda_id: string | null;
+  centro_custo_venda_id: string | null;
 }
 
 export default function ItemsPage() {
@@ -48,6 +50,7 @@ export default function ItemsPage() {
     codigo: "", descricao: "", tipo_item: "REVENDA", unidade_medida: "UN",
     preco_venda: "0", ativo: true, category_id: "",
     natureza_financeira_id: "", centro_custo_id: "",
+    natureza_venda_id: "", centro_custo_venda_id: "",
   };
   const [form, setForm] = useState(emptyForm);
 
@@ -56,7 +59,7 @@ export default function ItemsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, tipo_item, saldo_estoque, custo_medio, unidade_medida, preco_venda, ativo, category_id, natureza_financeira_id, centro_custo_id")
+        .select("id, codigo, descricao, tipo_item, saldo_estoque, custo_medio, unidade_medida, preco_venda, ativo, category_id, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id")
         .order("codigo");
       if (error) throw error;
       return data as Item[];
@@ -124,6 +127,8 @@ export default function ItemsPage() {
         category_id: form.category_id || null,
         natureza_financeira_id: form.natureza_financeira_id || null,
         centro_custo_id: form.centro_custo_id || null,
+        natureza_venda_id: form.natureza_venda_id || null,
+        centro_custo_venda_id: form.centro_custo_venda_id || null,
       };
       if (editingId) {
         const { error } = await supabase.from("items").update(payload).eq("id", editingId);
@@ -154,6 +159,8 @@ export default function ItemsPage() {
       category_id: item.category_id || "",
       natureza_financeira_id: item.natureza_financeira_id || "",
       centro_custo_id: item.centro_custo_id || "",
+      natureza_venda_id: item.natureza_venda_id || "",
+      centro_custo_venda_id: item.centro_custo_venda_id || "",
     });
     setOpen(true);
   }
@@ -170,6 +177,8 @@ export default function ItemsPage() {
       category_id: item.category_id || "",
       natureza_financeira_id: item.natureza_financeira_id || "",
       centro_custo_id: item.centro_custo_id || "",
+      natureza_venda_id: item.natureza_venda_id || "",
+      centro_custo_venda_id: item.centro_custo_venda_id || "",
     });
     setOpen(true);
   }
@@ -289,28 +298,59 @@ export default function ItemsPage() {
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
-              <div className="space-y-1.5">
-                <Label className="text-xs">Natureza Financeira</Label>
-                <Select value={form.natureza_financeira_id} onValueChange={(v) => setForm({ ...form, natureza_financeira_id: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
-                  <SelectContent>
-                    {natures.map((n) => (
-                      <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Classificação — Compra</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Natureza Financeira</Label>
+                  <Select value={form.natureza_financeira_id} onValueChange={(v) => setForm({ ...form, natureza_financeira_id: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      {natures.map((n) => (
+                        <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Centro de Custo</Label>
+                  <Select value={form.centro_custo_id} onValueChange={(v) => setForm({ ...form, centro_custo_id: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                    <SelectContent>
+                      {costCenters.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
-              <div className="space-y-1.5">
-                <Label className="text-xs">Centro de Custo</Label>
-                <Select value={form.centro_custo_id} onValueChange={(v) => setForm({ ...form, centro_custo_id: v })}>
-                  <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
-                  <SelectContent>
-                    {costCenters.map((c) => (
-                      <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+            </div>
+
+            <div className="space-y-2 rounded-md border p-3">
+              <p className="text-xs font-semibold text-muted-foreground">Classificação — Venda</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Natureza Financeira</Label>
+                  <Select value={form.natureza_venda_id} onValueChange={(v) => setForm({ ...form, natureza_venda_id: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhuma" /></SelectTrigger>
+                    <SelectContent>
+                      {natures.map((n) => (
+                        <SelectItem key={n.id} value={n.id} className="text-xs">{n.codigo} - {n.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-1.5">
+                  <Label className="text-xs">Centro de Custo</Label>
+                  <Select value={form.centro_custo_venda_id} onValueChange={(v) => setForm({ ...form, centro_custo_venda_id: v })}>
+                    <SelectTrigger className="h-8 text-xs"><SelectValue placeholder="Nenhum" /></SelectTrigger>
+                    <SelectContent>
+                      {costCenters.map((c) => (
+                        <SelectItem key={c.id} value={c.id} className="text-xs">{c.codigo} - {c.descricao}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
               </div>
             </div>
 
