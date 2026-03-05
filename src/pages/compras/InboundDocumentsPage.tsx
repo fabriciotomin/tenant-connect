@@ -961,6 +961,14 @@ export default function InboundDocumentsPage() {
               </TabsContent>
 
               <TabsContent value="itens">
+                {(() => {
+                  const freteDoc = Number(linkedPOFrete?.valor_frete || 0);
+                  const totalValorItens = docItems.reduce((s, di) => s + di.quantidade * di.valor_unitario, 0);
+                  const fretePerItem = docItems.map((di) => {
+                    if (freteDoc <= 0 || totalValorItens <= 0) return 0;
+                    return (di.quantidade * di.valor_unitario / totalValorItens) * freteDoc;
+                  });
+                  return (
                 <div className="space-y-2">
                   <div className="border rounded">
                     <table className="w-full text-2xs">
@@ -971,19 +979,24 @@ export default function InboundDocumentsPage() {
                           <th className="text-right p-1.5">Qtd</th>
                           <th className="text-right p-1.5">Vlr Unit</th>
                           <th className="text-right p-1.5">Impostos</th>
+                          <th className="text-right p-1.5">Vlr. Frete Item</th>
                           <th className="text-right p-1.5">Subtotal</th>
                           {selectedDoc.status === "PENDENTE" && <th className="p-1.5 w-8"></th>}
                         </tr>
                       </thead>
                       <tbody>
-                        {docItems.map((di) => (
+                        {docItems.map((di, idx) => {
+                          const frete = fretePerItem[idx] || 0;
+                          const subtotal = di.quantidade * di.valor_unitario + di.impostos + frete;
+                          return (
                           <tr key={di.id} className="border-t">
                             <td className="p-1.5">{di.items?.codigo} - {di.items?.descricao}</td>
                             <td className="p-1.5">{di.items?.unidade_medida || "UN"}</td>
                             <td className="text-right p-1.5">{di.quantidade}</td>
                             <td className="text-right p-1.5">R$ {Number(di.valor_unitario).toFixed(2)}</td>
                             <td className="text-right p-1.5">R$ {Number(di.impostos).toFixed(2)}</td>
-                            <td className="text-right p-1.5">R$ {(di.quantidade * di.valor_unitario + di.impostos).toFixed(2)}</td>
+                            <td className="text-right p-1.5">R$ {frete.toFixed(2)}</td>
+                            <td className="text-right p-1.5 font-medium">R$ {subtotal.toFixed(2)}</td>
                             {selectedDoc.status === "PENDENTE" && (
                               <td className="p-1.5">
                                 <Button variant="ghost" size="sm" className="h-5 w-5 p-0 text-destructive" onClick={() => removeItemFromDoc.mutate({ itemId: di.id!, docId: selectedDoc.id })}>
@@ -992,8 +1005,9 @@ export default function InboundDocumentsPage() {
                               </td>
                             )}
                           </tr>
-                        ))}
-                        {docItems.length === 0 && <tr><td colSpan={7} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
+                          );
+                        })}
+                        {docItems.length === 0 && <tr><td colSpan={8} className="text-center p-4 text-muted-foreground">Nenhum item</td></tr>}
                       </tbody>
                     </table>
                   </div>
