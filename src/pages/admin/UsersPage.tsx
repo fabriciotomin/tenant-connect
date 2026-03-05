@@ -335,11 +335,32 @@ export default function UsersPage() {
     });
   };
 
+  // Group permissions into Parent Module > Sub-feature > Actions
   const permsByModule = allPermissions.reduce<Record<string, Permission[]>>((acc, p) => {
     if (!acc[p.module]) acc[p.module] = [];
     acc[p.module].push(p);
     return acc;
   }, {});
+
+  // Build hierarchical structure: Parent > Sub-feature > perms
+  const buildTree = () => {
+    const tree: Record<string, Record<string, Permission[]>> = {};
+    for (const [mod, perms] of Object.entries(permsByModule)) {
+      const parts = mod.split(' - ');
+      const parent = parts[0];
+      const sub = parts.length > 1 ? parts.slice(1).join(' - ') : parent;
+      if (!tree[parent]) tree[parent] = {};
+      if (!tree[parent][sub]) tree[parent][sub] = [];
+      tree[parent][sub].push(...perms);
+    }
+    return tree;
+  };
+  const permTree = buildTree();
+
+  const getSubPerms = (parent: string) => {
+    const subs = permTree[parent] || {};
+    return Object.values(subs).flat();
+  };
 
   const allPermIds = allPermissions.map((p) => p.id);
   const allSelected = allPermIds.length > 0 && allPermIds.every((id) => selectedPerms.has(id));
