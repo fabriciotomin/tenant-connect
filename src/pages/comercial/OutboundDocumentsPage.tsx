@@ -754,13 +754,18 @@ export default function OutboundDocumentsPage() {
                          <th className="text-right p-1.5">Qtd</th>
                         <th className="text-right p-1.5">Vlr Unit</th>
                         <th className="text-right p-1.5">Subtotal</th>
+                        <th className="text-left p-1.5">Nat. Fin.</th>
+                        <th className="text-left p-1.5">C. Custo</th>
                         {selectedDoc.status === "PENDENTE" && (
                           <th className="p-1.5 w-8"></th>
                         )}
                       </tr>
                     </thead>
                     <tbody>
-                      {docItems.map((di) => (
+                      {docItems.map((di) => {
+                        const natCode = di.natureza_financeira_id ? natures.find(n => n.id === di.natureza_financeira_id) : null;
+                        const ccCode = di.centro_custo_id ? costCenters.find(c => c.id === di.centro_custo_id) : null;
+                        return (
                         <tr key={di.id} className="border-t">
                            <td className="p-1.5">
                              {di.items?.codigo} - {di.items?.descricao}
@@ -774,6 +779,12 @@ export default function OutboundDocumentsPage() {
                           </td>
                           <td className="text-right p-1.5">
                             R$ {(di.quantidade * di.valor_unitario).toFixed(2)}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {natCode ? `${natCode.codigo} - ${natCode.descricao}` : "—"}
+                          </td>
+                          <td className="p-1.5 text-muted-foreground">
+                            {ccCode ? `${ccCode.codigo} - ${ccCode.descricao}` : "—"}
                           </td>
                           {selectedDoc.status === "PENDENTE" && (
                             <td className="p-1.5">
@@ -793,10 +804,11 @@ export default function OutboundDocumentsPage() {
                             </td>
                           )}
                         </tr>
-                      ))}
+                      );
+                      })}
                       {docItems.length === 0 && (
                         <tr>
-                          <td colSpan={5} className="text-center p-4 text-muted-foreground">
+                          <td colSpan={7} className="text-center p-4 text-muted-foreground">
                             Nenhum item
                           </td>
                         </tr>
