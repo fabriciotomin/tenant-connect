@@ -16,6 +16,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, FileOutput, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { useFinancialClassification } from "@/hooks/useFinancialClassification";
+import { usePaymentOptions } from "@/hooks/usePaymentOptions";
+import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
 
 const statusColors: Record<string, string> = {
   RASCUNHO: "bg-yellow-100 text-yellow-800",
@@ -48,7 +50,7 @@ export default function QuotationsPage() {
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState({ customer_id: "", validade: "" });
+  const [form, setForm] = useState({ customer_id: "", validade: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
   const [orderItems, setOrderItems] = useState<QItem[]>([]);
   const [itemPickerOpen, setItemPickerOpen] = useState(false);
   const [viewDoc, setViewDoc] = useState<Quotation | null>(null);
@@ -87,6 +89,7 @@ export default function QuotationsPage() {
   });
 
   const { natures, costCenters } = useFinancialClassification();
+  const { paymentConditions, paymentMethods } = usePaymentOptions();
 
   function handleAddSelectedItems(pickedItems: PickedItem[]) {
     const newItems: QItem[] = pickedItems
@@ -112,6 +115,8 @@ export default function QuotationsPage() {
     setForm({
       customer_id: quotation.customer_id || "",
       validade: quotation.validade || "",
+      condicao_pagamento_id: (quotation as any).condicao_pagamento_id || "",
+      forma_pagamento_id: (quotation as any).forma_pagamento_id || "",
     });
     setOrderItems((qItems || []).map(i => ({
       item_id: i.item_id || "",
@@ -126,7 +131,7 @@ export default function QuotationsPage() {
   function handleClose() {
     setOpen(false);
     setEditingId(null);
-    setForm({ customer_id: "", validade: "" });
+    setForm({ customer_id: "", validade: "", condicao_pagamento_id: "", forma_pagamento_id: "" });
     setOrderItems([]);
   }
 
@@ -144,7 +149,9 @@ export default function QuotationsPage() {
           customer_id: form.customer_id || null,
           validade: form.validade || null,
           valor_total: valorTotal,
-        }).eq("id", editingId);
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          forma_pagamento_id: form.forma_pagamento_id || null,
+        } as any).eq("id", editingId);
         if (error) throw error;
 
         const { error: de } = await supabase.from("quotation_items").delete().eq("quotation_id", editingId);
@@ -170,6 +177,8 @@ export default function QuotationsPage() {
           validade: form.validade || null,
           valor_total: valorTotal,
           created_by: user?.id,
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          forma_pagamento_id: form.forma_pagamento_id || null,
         } as any).select("id").single();
         if (error) throw error;
 
@@ -208,11 +217,13 @@ export default function QuotationsPage() {
       if (qe) throw qe;
       if (!q.customer_id) throw new Error("Orçamento precisa de cliente para gerar pedido");
 
-      // Create sales order using sale_items table
+      // Create sales order using sale_items table — inherit payment fields
       const { data: so, error: se } = await supabase.from("sales_orders").insert({
         tenant_id: tenant.id,
         customer_id: q.customer_id,
         valor_total: q.valor_total,
+        condicao_pagamento_id: (q as any).condicao_pagamento_id || null,
+        forma_pagamento_id: (q as any).forma_pagamento_id || null,
       } as any).select("id").single();
       if (se) throw se;
 
@@ -265,6 +276,8 @@ export default function QuotationsPage() {
         validade: q.validade,
         valor_total: q.valor_total,
         created_by: user?.id,
+        condicao_pagamento_id: (q as any).condicao_pagamento_id || null,
+        forma_pagamento_id: (q as any).forma_pagamento_id || null,
       } as any).select("id").single();
       if (error) throw error;
 
@@ -379,6 +392,16 @@ export default function QuotationsPage() {
                 <Label className="text-xs">Validade</Label>
                 <Input type="date" className="h-8 text-xs" value={form.validade} onChange={(e) => setForm({ ...form, validade: e.target.value })} />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <PaymentFieldsSelect
+                condicaoId={form.condicao_pagamento_id}
+                formaId={form.forma_pagamento_id}
+                onCondicaoChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}
+                onFormaChange={(v) => setForm({ ...form, forma_pagamento_id: v })}
+                paymentConditions={paymentConditions}
+                paymentMethods={paymentMethods}
+              />
             </div>
 
             <div className="space-y-2">

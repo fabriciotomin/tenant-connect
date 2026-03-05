@@ -35,6 +35,8 @@ import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
+import { usePaymentOptions } from "@/hooks/usePaymentOptions";
+import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
 
 const statusColors: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800",
@@ -79,9 +81,13 @@ export default function OutboundDocumentsPage() {
   const [cancelDialogId, setCancelDialogId] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<OutboundDoc | null>(null);
 
+  const { paymentConditions, paymentMethods } = usePaymentOptions();
+
   const [form, setForm] = useState({
     cliente_id: "",
     data_emissao: new Date().toISOString().split("T")[0],
+    condicao_pagamento_id: "",
+    forma_pagamento_id: "",
   });
 
   const [newItems, setNewItems] = useState<
@@ -191,6 +197,8 @@ export default function OutboundDocumentsPage() {
           cliente_id: form.cliente_id,
           data_emissao: form.data_emissao,
           valor_total: valorTotal,
+          condicao_pagamento_id: form.condicao_pagamento_id || null,
+          forma_pagamento_id: form.forma_pagamento_id || null,
         } as any)
         .select("id")
         .single();
@@ -326,6 +334,8 @@ export default function OutboundDocumentsPage() {
     setForm({
       cliente_id: "",
       data_emissao: new Date().toISOString().split("T")[0],
+      condicao_pagamento_id: "",
+      forma_pagamento_id: "",
     });
     setNewItems([]);
   }
@@ -504,6 +514,16 @@ export default function OutboundDocumentsPage() {
                   onChange={(e) => setForm({ ...form, data_emissao: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <PaymentFieldsSelect
+                condicaoId={form.condicao_pagamento_id}
+                formaId={form.forma_pagamento_id}
+                onCondicaoChange={(v) => setForm({ ...form, condicao_pagamento_id: v })}
+                onFormaChange={(v) => setForm({ ...form, forma_pagamento_id: v })}
+                paymentConditions={paymentConditions}
+                paymentMethods={paymentMethods}
+              />
             </div>
 
             {/* Items */}

@@ -119,6 +119,7 @@ export type Database = {
           data_vencimento: string
           deleted_at: string | null
           documento_origem: string | null
+          forma_pagamento_id: string | null
           id: string
           status: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id: string
@@ -130,6 +131,7 @@ export type Database = {
           data_vencimento: string
           deleted_at?: string | null
           documento_origem?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           status?: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id: string
@@ -141,6 +143,7 @@ export type Database = {
           data_vencimento?: string
           deleted_at?: string | null
           documento_origem?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           status?: Database["public"]["Enums"]["status_financeiro"] | null
           tenant_id?: string
@@ -152,6 +155,13 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounts_receivable_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
           },
           {
@@ -972,9 +982,11 @@ export type Database = {
         Row: {
           chave_acesso: string | null
           cliente_id: string | null
+          condicao_pagamento_id: string | null
           created_at: string | null
           data_emissao: string | null
           deleted_at: string | null
+          forma_pagamento_id: string | null
           id: string
           numero_nf: number | null
           pedido_venda_id: string | null
@@ -987,9 +999,11 @@ export type Database = {
         Insert: {
           chave_acesso?: string | null
           cliente_id?: string | null
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           data_emissao?: string | null
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_nf?: number | null
           pedido_venda_id?: string | null
@@ -1002,9 +1016,11 @@ export type Database = {
         Update: {
           chave_acesso?: string | null
           cliente_id?: string | null
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           data_emissao?: string | null
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_nf?: number | null
           pedido_venda_id?: string | null
@@ -1020,6 +1036,20 @@ export type Database = {
             columns: ["cliente_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_documents_condicao_pagamento_id_fkey"
+            columns: ["condicao_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "payment_conditions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "outbound_documents_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
           },
           {
@@ -1349,10 +1379,12 @@ export type Database = {
       }
       quotations: {
         Row: {
+          condicao_pagamento_id: string | null
           created_at: string | null
           created_by: string | null
           customer_id: string | null
           deleted_at: string | null
+          forma_pagamento_id: string | null
           id: string
           numero_sequencial: number
           status: string | null
@@ -1361,10 +1393,12 @@ export type Database = {
           valor_total: number | null
         }
         Insert: {
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id?: string | null
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_sequencial?: number
           status?: string | null
@@ -1373,10 +1407,12 @@ export type Database = {
           valor_total?: number | null
         }
         Update: {
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           created_by?: string | null
           customer_id?: string | null
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_sequencial?: number
           status?: string | null
@@ -1386,10 +1422,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "quotations_condicao_pagamento_id_fkey"
+            columns: ["condicao_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "payment_conditions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "quotations_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotations_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
           },
           {
@@ -1499,9 +1549,11 @@ export type Database = {
       }
       sales_orders: {
         Row: {
+          condicao_pagamento_id: string | null
           created_at: string | null
           customer_id: string
           deleted_at: string | null
+          forma_pagamento_id: string | null
           id: string
           numero_sequencial: number
           status: string | null
@@ -1509,9 +1561,11 @@ export type Database = {
           valor_total: number | null
         }
         Insert: {
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           customer_id: string
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_sequencial?: number
           status?: string | null
@@ -1519,9 +1573,11 @@ export type Database = {
           valor_total?: number | null
         }
         Update: {
+          condicao_pagamento_id?: string | null
           created_at?: string | null
           customer_id?: string
           deleted_at?: string | null
+          forma_pagamento_id?: string | null
           id?: string
           numero_sequencial?: number
           status?: string | null
@@ -1530,10 +1586,24 @@ export type Database = {
         }
         Relationships: [
           {
+            foreignKeyName: "sales_orders_condicao_pagamento_id_fkey"
+            columns: ["condicao_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "payment_conditions"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "sales_orders_customer_id_fkey"
             columns: ["customer_id"]
             isOneToOne: false
             referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sales_orders_forma_pagamento_id_fkey"
+            columns: ["forma_pagamento_id"]
+            isOneToOne: false
+            referencedRelation: "formas_pagamento"
             referencedColumns: ["id"]
           },
           {
