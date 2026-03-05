@@ -30,7 +30,7 @@ export function ItemPickerDialog({ open, onOpenChange, onConfirm, excludeIds = [
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, unidade_medida, saldo_estoque, preco_venda, item_groups(descricao)")
+        .select("id, codigo, descricao, unidade_medida, saldo_estoque, preco_venda, category_id, item_categories(nome)")
         .eq("ativo", true)
         .order("codigo");
       if (error) throw error;
@@ -45,7 +45,7 @@ export function ItemPickerDialog({ open, onOpenChange, onConfirm, excludeIds = [
       (i) =>
         i.codigo.toLowerCase().includes(s) ||
         i.descricao.toLowerCase().includes(s) ||
-        (i.item_groups as any)?.descricao?.toLowerCase().includes(s)
+        (i.item_categories as any)?.nome?.toLowerCase().includes(s)
     );
   }, [items, search]);
 
