@@ -59,7 +59,7 @@ export default function AccountsReceivablePage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("accounts_receivable")
-        .select("id, documento_origem, data_vencimento, valor, status, cliente_id, customers(razao_social)")
+        .select("id, documento_origem, data_vencimento, created_at, valor, status, cliente_id, customers(razao_social)")
         .is("deleted_at", null)
         .order("data_vencimento", { ascending: true });
       if (error) throw error;
