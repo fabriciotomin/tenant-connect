@@ -97,7 +97,7 @@ export default function InboundDocumentsPage() {
   const [form, setForm] = useState({
     fornecedor_id: "",
     numero: "",
-    serie: "",
+    serie: "1",
     data_emissao: new Date().toISOString().split("T")[0],
     frete_total: "0",
     frete_modo: "ratear" as "ratear" | "manual",
@@ -110,7 +110,7 @@ export default function InboundDocumentsPage() {
 
   // PO selection
   const [selectedPOId, setSelectedPOId] = useState("");
-  const [poFiscal, setPoFiscal] = useState({ data_emissao: new Date().toISOString().split("T")[0], serie: "", numero: "" });
+  const [poFiscal, setPoFiscal] = useState({ data_emissao: new Date().toISOString().split("T")[0], serie: "1", numero: "" });
   const [poItems, setPoItems] = useState<{ item_id: string; quantidade: string; valor_unitario: string; impostos: string; item_codigo?: string; item_descricao?: string }[]>([]);
 
   // ---- Queries ----
@@ -555,12 +555,12 @@ export default function InboundDocumentsPage() {
   }
 
   function resetForm() {
-    setForm({ fornecedor_id: "", numero: "", serie: "", data_emissao: new Date().toISOString().split("T")[0], frete_total: "0", frete_modo: "ratear" });
+    setForm({ fornecedor_id: "", numero: "", serie: "1", data_emissao: new Date().toISOString().split("T")[0], frete_total: "0", frete_modo: "ratear" });
     setNewItems([]);
     setXmlData(null);
     setSelectedPOId("");
     setPoItems([]);
-    setPoFiscal({ data_emissao: new Date().toISOString().split("T")[0], serie: "", numero: "" });
+    setPoFiscal({ data_emissao: new Date().toISOString().split("T")[0], serie: "1", numero: "" });
   }
 
   // ---- Item Picker Handler ----
@@ -702,7 +702,7 @@ export default function InboundDocumentsPage() {
             </Button>
             <Button variant="outline" size="sm" className="h-8 text-xs gap-1.5" onClick={() => {
               setOpenFromPO(true); setSelectedPOId(""); setPoItems([]);
-              setPoFiscal({ data_emissao: new Date().toISOString().split("T")[0], serie: "", numero: "" });
+              setPoFiscal({ data_emissao: new Date().toISOString().split("T")[0], serie: "1", numero: "" });
             }}>
               <Link2 className="h-3.5 w-3.5" />
               A partir de Pedido de Compra
