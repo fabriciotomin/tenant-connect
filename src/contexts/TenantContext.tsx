@@ -46,22 +46,13 @@ export function TenantProvider({ children }: { children: ReactNode }) {
       setTenantLoading(true);
       setTenantError(null);
 
-      // First try without status filter (for admin_global switching)
-      const { data: { session } } = await supabase.auth.getSession();
-      const isAuthenticated = !!session?.user;
+      // Use SECURITY DEFINER RPC to resolve tenant by slug
+      // This works for both anon and authenticated users without opening RLS
+      const { data: rpcData, error: rpcError } = await supabase
+        .rpc("resolve_tenant_by_slug", { _slug: slug });
 
-      let query = supabase
-        .from("empresas")
-        .select("id, slug, razao_social, nome_fantasia, status, plano")
-        .eq("slug", slug)
-        .is("deleted_at", null);
-
-      // Only filter by status for unauthenticated users
-      if (!isAuthenticated) {
-        query = query.eq("status", "ativo");
-      }
-
-      const { data, error } = await query.single();
+      const data = rpcData && rpcData.length > 0 ? rpcData[0] : null;
+      const error = rpcError;
 
       if (error || !data) {
         setTenantError("Empresa não encontrada ou inativa.");
