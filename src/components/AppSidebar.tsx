@@ -16,12 +16,15 @@ import {
 } from "@/components/ui/sidebar";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { useTenant } from "@/contexts/TenantContext";
+import { usePermissions } from "@/hooks/usePermissions";
 
 interface MenuItem {
   title: string;
   url: string;
   icon: any;
-  children?: { title: string; url: string; icon: any }[];
+  /** Permission module name required to see this item */
+  permission?: string;
+  children?: { title: string; url: string; icon: any; permission?: string }[];
 }
 
 const mainItems: MenuItem[] = [
@@ -32,46 +35,46 @@ const moduleItems: MenuItem[] = [
   {
     title: "Compras", url: "/compras", icon: ShoppingCart,
     children: [
-      { title: "Pedidos", url: "/compras/pedidos", icon: ClipboardList },
-      { title: "Entradas (NF-e)", url: "/compras/entradas", icon: Receipt },
+      { title: "Pedidos", url: "/compras/pedidos", icon: ClipboardList, permission: "Compras - Pedidos" },
+      { title: "Entradas (NF-e)", url: "/compras/entradas", icon: Receipt, permission: "Compras - Entradas (NF-e)" },
     ],
   },
   {
     title: "Estoque", url: "/estoque", icon: Package,
     children: [
-      { title: "Itens", url: "/estoque/itens", icon: Boxes },
-      { title: "Grupos", url: "/estoque/grupos", icon: FolderTree },
-      { title: "Movimentações", url: "/estoque/movimentacoes", icon: ArrowDownUp },
+      { title: "Itens", url: "/estoque/itens", icon: Boxes, permission: "Estoque - Itens" },
+      { title: "Grupos", url: "/estoque/grupos", icon: FolderTree, permission: "Estoque - Grupos" },
+      { title: "Movimentações", url: "/estoque/movimentacoes", icon: ArrowDownUp, permission: "Estoque - Movimentações" },
     ],
   },
   {
     title: "Comercial", url: "/comercial", icon: Store,
     children: [
-      { title: "Orçamentos", url: "/comercial/orcamentos", icon: FileSpreadsheet },
-      { title: "Pedidos de Venda", url: "/comercial/pedidos-venda", icon: ShoppingBag },
-      { title: "Doc. Saída (NF-e)", url: "/comercial/documentos-saida", icon: Receipt },
+      { title: "Orçamentos", url: "/comercial/orcamentos", icon: FileSpreadsheet, permission: "Comercial - Orçamentos" },
+      { title: "Pedidos de Venda", url: "/comercial/pedidos-venda", icon: ShoppingBag, permission: "Comercial - Pedidos de Venda" },
+      { title: "Doc. Saída (NF-e)", url: "/comercial/documentos-saida", icon: Receipt, permission: "Comercial - Doc. Saída (NF-e)" },
     ],
   },
   {
     title: "Serviços", url: "/servicos", icon: Wrench,
     children: [
-      { title: "Ordens de Serviço", url: "/servicos/ordens", icon: CalendarDays },
-      { title: "Agenda", url: "/servicos/agenda", icon: CalendarDays },
+      { title: "Ordens de Serviço", url: "/servicos/ordens", icon: CalendarDays, permission: "Serviços - Ordens de Serviço" },
+      { title: "Agenda", url: "/servicos/agenda", icon: CalendarDays, permission: "Serviços - Agenda" },
     ],
   },
   {
     title: "Financeiro", url: "/financeiro", icon: DollarSign,
     children: [
-      { title: "Contas a Pagar", url: "/financeiro/pagar", icon: CreditCard },
-      { title: "Contas a Receber", url: "/financeiro/receber", icon: Landmark },
-      { title: "Extrato Bancário", url: "/financeiro/movimentacao-bancaria", icon: Wallet },
+      { title: "Contas a Pagar", url: "/financeiro/pagar", icon: CreditCard, permission: "Financeiro - Contas a Pagar" },
+      { title: "Contas a Receber", url: "/financeiro/receber", icon: Landmark, permission: "Financeiro - Contas a Receber" },
+      { title: "Extrato Bancário", url: "/financeiro/movimentacao-bancaria", icon: Wallet, permission: "Financeiro - Extrato Bancário" },
     ],
   },
   {
     title: "Controladoria", url: "/controladoria", icon: BarChart3,
     children: [
-      { title: "DRE", url: "/controladoria/dre", icon: TrendingUp },
-      { title: "Fluxo de Caixa", url: "/controladoria/fluxo-caixa", icon: Wallet },
+      { title: "DRE", url: "/controladoria/dre", icon: TrendingUp, permission: "Controladoria - DRE" },
+      { title: "Fluxo de Caixa", url: "/controladoria/fluxo-caixa", icon: Wallet, permission: "Controladoria - Fluxo de Caixa" },
     ],
   },
 ];
@@ -80,19 +83,19 @@ const registerItems: MenuItem[] = [
   {
     title: "Cadastros", url: "/cadastros", icon: FileText,
     children: [
-      { title: "Clientes", url: "/cadastros/clientes", icon: UserCheck },
-      { title: "Fornecedores", url: "/cadastros/fornecedores", icon: Building2 },
-      { title: "Formas Pagamento", url: "/cadastros/formas-pagamento", icon: CreditCard },
-      { title: "Cond. Pagamento", url: "/cadastros/condicoes-pagamento", icon: CalendarDays },
-      { title: "Nat. Financeiras", url: "/cadastros/naturezas", icon: FolderTree },
-      { title: "Centros de Custo", url: "/cadastros/centros-custo", icon: BarChart3 },
-      { title: "Bancos", url: "/cadastros/bancos", icon: Landmark },
-      { title: "Séries de Documento", url: "/cadastros/series", icon: Hash },
-      { title: "Unid. Medida", url: "/cadastros/unidades-medida", icon: Ruler },
+      { title: "Clientes", url: "/cadastros/clientes", icon: UserCheck, permission: "Cadastros - Clientes" },
+      { title: "Fornecedores", url: "/cadastros/fornecedores", icon: Building2, permission: "Cadastros - Fornecedores" },
+      { title: "Formas Pagamento", url: "/cadastros/formas-pagamento", icon: CreditCard, permission: "Cadastros - Formas de Pagamento" },
+      { title: "Cond. Pagamento", url: "/cadastros/condicoes-pagamento", icon: CalendarDays, permission: "Cadastros - Cond. Pagamento" },
+      { title: "Nat. Financeiras", url: "/cadastros/naturezas", icon: FolderTree, permission: "Cadastros - Nat. Financeiras" },
+      { title: "Centros de Custo", url: "/cadastros/centros-custo", icon: BarChart3, permission: "Cadastros - Centros de Custo" },
+      { title: "Bancos", url: "/cadastros/bancos", icon: Landmark, permission: "Cadastros - Bancos" },
+      { title: "Séries de Documento", url: "/cadastros/series", icon: Hash, permission: "Cadastros - Séries de Documento" },
+      { title: "Unid. Medida", url: "/cadastros/unidades-medida", icon: Ruler, permission: "Cadastros - Unid. Medida" },
     ],
   },
-  { title: "Usuários", url: "/usuarios", icon: Users },
-  { title: "Empresas", url: "/empresas", icon: Building2 },
+  { title: "Usuários", url: "/usuarios", icon: Users, permission: "Administração - Usuários" },
+  { title: "Empresas", url: "/empresas", icon: Building2, permission: "Administração - Usuários" },
   { title: "Configurações", url: "/configuracoes", icon: Settings },
 ];
 
@@ -100,10 +103,29 @@ export function AppSidebar() {
   const location = useLocation();
   const tenantPath = useTenantPath();
   const { tenant } = useTenant();
+  const { canView, loading: permLoading } = usePermissions();
 
   const isActive = (path: string) => {
     const full = tenantPath(path);
     return path === "/" ? location.pathname === full : location.pathname.startsWith(full);
+  };
+
+  /** Filter children by permission, then hide parent if no children remain */
+  const filterByPermission = (items: MenuItem[]): MenuItem[] => {
+    return items
+      .map((item) => {
+        if (item.children) {
+          const visibleChildren = item.children.filter(
+            (c) => !c.permission || canView(c.permission)
+          );
+          if (visibleChildren.length === 0) return null;
+          return { ...item, children: visibleChildren };
+        }
+        // Top-level item with permission check
+        if (item.permission && !canView(item.permission)) return null;
+        return item;
+      })
+      .filter(Boolean) as MenuItem[];
   };
 
   const renderItem = (item: MenuItem) => {
@@ -150,6 +172,10 @@ export function AppSidebar() {
     );
   };
 
+  // Don't filter while permissions are loading to avoid flash
+  const visibleModules = permLoading ? moduleItems : filterByPermission(moduleItems);
+  const visibleRegisters = permLoading ? registerItems : filterByPermission(registerItems);
+
   return (
     <Sidebar>
       <SidebarHeader className="p-3">
@@ -174,18 +200,22 @@ export function AppSidebar() {
             <SidebarMenu>{mainItems.map(renderItem)}</SidebarMenu>
           </SidebarGroupContent>
         </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-2xs uppercase tracking-wider text-sidebar-foreground/50">Módulos</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>{moduleItems.map(renderItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
-        <SidebarGroup>
-          <SidebarGroupLabel className="text-2xs uppercase tracking-wider text-sidebar-foreground/50">Administração</SidebarGroupLabel>
-          <SidebarGroupContent>
-            <SidebarMenu>{registerItems.map(renderItem)}</SidebarMenu>
-          </SidebarGroupContent>
-        </SidebarGroup>
+        {visibleModules.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-2xs uppercase tracking-wider text-sidebar-foreground/50">Módulos</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{visibleModules.map(renderItem)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
+        {visibleRegisters.length > 0 && (
+          <SidebarGroup>
+            <SidebarGroupLabel className="text-2xs uppercase tracking-wider text-sidebar-foreground/50">Administração</SidebarGroupLabel>
+            <SidebarGroupContent>
+              <SidebarMenu>{visibleRegisters.map(renderItem)}</SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        )}
       </SidebarContent>
       <SidebarFooter className="p-3">
         <div className="text-2xs text-sidebar-foreground/40">v1.0.0</div>
