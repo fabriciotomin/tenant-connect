@@ -30,6 +30,7 @@ export default function PaymentMethodsPage() {
       const { data, error } = await supabase
         .from("formas_pagamento")
         .select("id, nome, ativo, created_at")
+        .is("deleted_at", null)
         .order("nome");
       if (error) throw error;
       return data as FormaPagamento[];

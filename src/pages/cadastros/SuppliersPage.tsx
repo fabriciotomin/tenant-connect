@@ -28,7 +28,7 @@ export default function SuppliersPage() {
   const { data: suppliers = [], isLoading } = useQuery({
     queryKey: ["suppliers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("suppliers").select("id, razao_social, cnpj, ativo").order("razao_social");
+      const { data, error } = await supabase.from("suppliers").select("id, razao_social, cnpj, ativo").is("deleted_at", null).order("razao_social");
       if (error) throw error;
       return data as Supplier[];
     },

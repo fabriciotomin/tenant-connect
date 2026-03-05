@@ -46,7 +46,8 @@ export default function DREPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, tipo_item, custo_medio");
+        .select("id, tipo_item, custo_medio")
+        .is("deleted_at", null);
       if (error) throw error;
       const map: Record<string, { tipo_item: string; custo_medio: number }> = {};
       (data || []).forEach((i: any) => { map[i.id] = { tipo_item: i.tipo_item || "REVENDA", custo_medio: Number(i.custo_medio) || 0 }; });
@@ -82,6 +83,7 @@ export default function DREPage() {
         .from("accounts_payable")
         .select("valor, status")
         .neq("status", "CANCELADO")
+        .is("deleted_at", null)
         .gte("data_vencimento", startDate)
         .lte("data_vencimento", endDate);
       if (error) throw error;

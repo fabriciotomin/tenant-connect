@@ -34,6 +34,7 @@ export default function StockMovementsPage() {
       const { data, error } = await supabase
         .from("stock_movements")
         .select("id, tipo, quantidade, custo_unitario, documento_origem, created_at, items(codigo, descricao, unidade_medida, tipo_item, custo_medio)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false })
         .limit(200);
       if (error) throw error;

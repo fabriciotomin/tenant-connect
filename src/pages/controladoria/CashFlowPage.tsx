@@ -23,6 +23,7 @@ export default function CashFlowPage() {
         .gte("data_vencimento", startDate)
         .lte("data_vencimento", endDate)
         .neq("status", "CANCELADO")
+        .is("deleted_at", null)
         .order("data_vencimento");
       if (error) throw error;
       return data;
@@ -38,6 +39,7 @@ export default function CashFlowPage() {
         .gte("data_vencimento", startDate)
         .lte("data_vencimento", endDate)
         .neq("status", "CANCELADO")
+        .is("deleted_at", null)
         .order("data_vencimento");
       if (error) throw error;
       return data;

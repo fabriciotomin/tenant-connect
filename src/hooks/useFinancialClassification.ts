@@ -14,6 +14,7 @@ export function useFinancialClassification() {
         .select("id, codigo, descricao")
         .eq("tipo", "ANALITICO")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;
@@ -28,6 +29,7 @@ export function useFinancialClassification() {
         .from("cost_centers")
         .select("id, codigo, descricao")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;

@@ -43,6 +43,7 @@ export default function BanksPage() {
       const { data, error } = await supabase
         .from("banks")
         .select("*")
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return (data || []) as unknown as Bank[];
@@ -78,7 +79,7 @@ export default function BanksPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("banks").delete().eq("id", id);
+      const { error } = await supabase.from("banks").update({ deleted_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

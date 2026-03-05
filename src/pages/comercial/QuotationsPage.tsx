@@ -61,6 +61,7 @@ export default function QuotationsPage() {
       const { data, error } = await supabase
         .from("quotations")
         .select("*, customers(razao_social)")
+        .is("deleted_at", null)
         .order("numero_sequencial", { ascending: false });
       if (error) throw error;
       return data as Quotation[];
@@ -70,7 +71,7 @@ export default function QuotationsPage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).order("razao_social");
+      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).is("deleted_at", null).order("razao_social");
       if (error) throw error;
       return data;
     },
@@ -79,7 +80,7 @@ export default function QuotationsPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, preco_venda").eq("ativo", true).is("deleted_at", null).order("codigo");
       if (error) throw error;
       return data;
     },

@@ -34,6 +34,7 @@ export default function UnidadesMedidaPage() {
       const { data, error } = await supabase
         .from("unidades_medida")
         .select("id, codigo, descricao, ativo, created_at")
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data as Unidade[];

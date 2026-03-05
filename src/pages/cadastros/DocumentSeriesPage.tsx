@@ -66,6 +66,7 @@ export default function DocumentSeriesPage() {
       const { data, error } = await supabase
         .from("document_series")
         .select("*")
+        .is("deleted_at", null)
         .order("created_at", { ascending: true });
       if (error) throw error;
 

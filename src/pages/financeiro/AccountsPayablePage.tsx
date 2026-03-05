@@ -60,6 +60,7 @@ export default function AccountsPayablePage() {
       const { data, error } = await supabase
         .from("accounts_payable")
         .select("id, descricao, data_vencimento, valor, status, supplier_id, suppliers:supplier_id(razao_social)")
+        .is("deleted_at", null)
         .order("data_vencimento", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as AP[];
@@ -70,7 +71,7 @@ export default function AccountsPayablePage() {
     queryKey: ["suppliers_list", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("suppliers").select("id, razao_social").order("razao_social");
+      const { data } = await supabase.from("suppliers").select("id, razao_social").is("deleted_at", null).order("razao_social");
       return data || [];
     },
   });
@@ -79,7 +80,7 @@ export default function AccountsPayablePage() {
     queryKey: ["banks", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("banks").select("id, nome, codigo").eq("ativo", true).order("nome");
+      const { data } = await supabase.from("banks").select("id, nome, codigo").eq("ativo", true).is("deleted_at", null).order("nome");
       return data || [];
     },
   });

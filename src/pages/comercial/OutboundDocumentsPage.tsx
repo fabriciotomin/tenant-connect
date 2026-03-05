@@ -90,6 +90,7 @@ export default function OutboundDocumentsPage() {
       const { data, error } = await supabase
         .from("outbound_documents")
         .select("*, customers(razao_social)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       
@@ -117,6 +118,7 @@ export default function OutboundDocumentsPage() {
         .from("customers")
         .select("id, razao_social")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("razao_social");
       if (error) throw error;
       return data;
@@ -130,6 +132,7 @@ export default function OutboundDocumentsPage() {
         .from("items")
         .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;

@@ -59,6 +59,7 @@ export default function AccountsReceivablePage() {
       const { data, error } = await supabase
         .from("accounts_receivable")
         .select("id, documento_origem, data_vencimento, valor, status, cliente_id, customers(razao_social)")
+        .is("deleted_at", null)
         .order("data_vencimento", { ascending: true });
       if (error) throw error;
       return (data || []) as unknown as AR[];
@@ -69,7 +70,7 @@ export default function AccountsReceivablePage() {
     queryKey: ["customers_list", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("customers").select("id, razao_social").order("razao_social");
+      const { data } = await supabase.from("customers").select("id, razao_social").is("deleted_at", null).order("razao_social");
       return data || [];
     },
   });
@@ -78,7 +79,7 @@ export default function AccountsReceivablePage() {
     queryKey: ["banks", tenant?.id],
     enabled: !!tenant?.id,
     queryFn: async () => {
-      const { data } = await supabase.from("banks").select("id, nome, codigo").eq("ativo", true).order("nome");
+      const { data } = await supabase.from("banks").select("id, nome, codigo").eq("ativo", true).is("deleted_at", null).order("nome");
       return data || [];
     },
   });

@@ -60,6 +60,7 @@ export default function ItemsPage() {
       const { data, error } = await supabase
         .from("items")
         .select("id, codigo, descricao, tipo_item, saldo_estoque, custo_medio, unidade_medida, preco_venda, ativo, category_id, natureza_financeira_id, centro_custo_id, natureza_venda_id, centro_custo_venda_id")
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data as Item[];
@@ -72,6 +73,7 @@ export default function ItemsPage() {
       const { data, error } = await supabase
         .from("item_categories")
         .select("id, nome")
+        .is("deleted_at", null)
         .order("nome");
       if (error) throw error;
       return data;
@@ -86,6 +88,7 @@ export default function ItemsPage() {
         .from("unidades_medida")
         .select("id, codigo, descricao")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;
