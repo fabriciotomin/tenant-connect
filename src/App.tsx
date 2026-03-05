@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams, useLocation } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { AppLayout } from "@/components/AppLayout";
@@ -58,14 +58,50 @@ import ModulePage from "./pages/ModulePage";
 
 const queryClient = new QueryClient();
 
-function PublicRoute({ children }: { children: React.ReactNode }) {
+/**
+ * PublicRoute for tenant-scoped auth pages (/t/:slug/auth).
+ * If user is already logged in, redirects to tenant dashboard.
+ * NEVER redirects to "/" — always preserves the tenant slug.
+ */
+function TenantPublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const { slug } = useParams<{ slug: string }>();
-  if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-sm text-muted-foreground">Carregando...</div></div>;
-  if (user) {
-    // Preserve tenant context on redirect
-    return <Navigate to={slug ? `/t/${slug}` : "/"} replace />;
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-sm text-muted-foreground">Carregando...</div>
+      </div>
+    );
   }
+
+  // If user is logged in and we have a slug, redirect to tenant dashboard
+  if (user && slug) {
+    return <Navigate to={`/t/${slug}`} replace />;
+  }
+
+  return <>{children}</>;
+}
+
+/**
+ * PublicRoute for global auth (/auth).
+ * If user is logged in, redirects to "/" (SelectTenant will handle).
+ */
+function GlobalPublicRoute({ children }: { children: React.ReactNode }) {
+  const { user, loading } = useAuth();
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-sm text-muted-foreground">Carregando...</div>
+      </div>
+    );
+  }
+
+  if (user) {
+    return <Navigate to="/" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -77,14 +113,14 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           {/* Global auth (no tenant) - redirects to select tenant */}
-          <Route path="/auth" element={<PublicRoute><Auth /></PublicRoute>} />
+          <Route path="/auth" element={<GlobalPublicRoute><Auth /></GlobalPublicRoute>} />
           
-          {/* Tenant-scoped auth */}
+          {/* Tenant-scoped auth — TenantProvider resolves slug via RPC */}
           <Route path="/t/:slug/auth" element={
             <TenantProvider>
-              <PublicRoute>
+              <TenantPublicRoute>
                 <Auth />
-              </PublicRoute>
+              </TenantPublicRoute>
             </TenantProvider>
           } />
 

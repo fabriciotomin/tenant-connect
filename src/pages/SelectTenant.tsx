@@ -3,13 +3,17 @@ import { useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
 import { useUserProfile } from "@/hooks/useUserProfile";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
+import { Card, CardContent } from "@/components/ui/card";
 import { Building2 } from "lucide-react";
 
 /**
- * Landing page for admin_global or users without a direct slug.
- * Shows list of companies the user can access.
+ * Landing page at "/".
+ * Priority: URL > Session > Manual selection.
+ * 
+ * - If not authenticated → redirect to /auth
+ * - If user has a single tenant → auto-redirect to /t/:slug
+ * - If admin_global with multiple tenants → show selection list
+ * - Uses RPC resolve_tenant_by_slug (SECURITY DEFINER) to avoid RLS issues
  */
 export default function SelectTenant() {
   const { user, loading: authLoading } = useAuth();
@@ -20,53 +24,51 @@ export default function SelectTenant() {
 
   useEffect(() => {
     if (authLoading || profileLoading) return;
+
     if (!user) {
       navigate("/auth", { replace: true });
       return;
     }
 
-    const fetchEmpresas = async () => {
-      if (isAdminGlobal) {
+    const fetchAndRedirect = async () => {
+      // For regular users: resolve their tenant slug and redirect immediately
+      if (!isAdminGlobal && profile?.tenant_id) {
+        // Use direct query — RLS allows user to see their own empresa
         const { data } = await supabase
           .from("empresas")
-          .select("id, slug, razao_social, nome_fantasia, status")
-          .eq("status", "ativo")
-          .order("razao_social");
-        const list = data || [];
-        // Auto-redirect to first empresa if only one or to avoid blank screen
-        if (list.length === 1) {
-          navigate(`/t/${list[0].slug}`, { replace: true });
-          return;
-        }
-        setEmpresas(list);
-      } else if (profile?.tenant_id) {
-        const { data } = await supabase
-          .from("empresas")
-          .select("id, slug, razao_social, nome_fantasia, status")
+          .select("slug")
           .eq("id", profile.tenant_id)
+          .is("deleted_at", null)
           .single();
-        if (data?.slug) {
-          navigate(`/t/${data.slug}`, { replace: true });
-          return;
-        }
-      } else {
-        // Fallback: user has no tenant_id, try first active empresa
-        const { data } = await supabase
-          .from("empresas")
-          .select("id, slug")
-          .eq("status", "ativo")
-          .order("razao_social")
-          .limit(1)
-          .single();
+
         if (data?.slug) {
           navigate(`/t/${data.slug}`, { replace: true });
           return;
         }
       }
+
+      // For admin_global: fetch all active empresas
+      if (isAdminGlobal) {
+        const { data } = await supabase
+          .from("empresas")
+          .select("id, slug, razao_social, nome_fantasia, status")
+          .is("deleted_at", null)
+          .order("razao_social");
+
+        const list = data || [];
+
+        if (list.length === 1) {
+          navigate(`/t/${list[0].slug}`, { replace: true });
+          return;
+        }
+
+        setEmpresas(list);
+      }
+
       setLoading(false);
     };
 
-    fetchEmpresas();
+    fetchAndRedirect();
   }, [user, authLoading, profileLoading, isAdminGlobal, profile]);
 
   if (authLoading || profileLoading || loading) {
