@@ -151,16 +151,14 @@ export default function ServiceOrdersPage() {
 
   const confirmMutation = useMutation({
     mutationFn: async (osId: string) => {
-      // Direct status update instead of RPC
-      const { data: os } = await supabase.from("service_orders").select("status").eq("id", osId).single();
-      if (os?.status !== "RASCUNHO") throw new Error("OS não está em RASCUNHO");
-      const { error } = await supabase.from("service_orders").update({ status: "CONFIRMADO" } as any).eq("id", osId);
+      const { error } = await supabase.rpc("confirm_service_order" as any, { _os_id: osId });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["service_orders"] });
+      queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
       setConfirmId(null);
-      toast.success("OS confirmada com sucesso.");
+      toast.success("OS confirmada! Documento de saída gerado automaticamente.");
     },
     onError: (e: any) => toast.error(`Erro: ${e.message}`),
   });

@@ -390,13 +390,13 @@ export default function QuotationsPage() {
               </div>
               {orderItems.length > 0 && (
                 <div className="border rounded-md overflow-hidden overflow-x-auto">
-                  <table className="w-full text-xs">
+                  <table className="w-full min-w-[600px] text-xs">
                     <thead className="bg-muted/50">
                        <tr>
                          <th className="text-left p-1.5">Item</th>
                          <th className="text-center p-1.5 w-12">UN</th>
-                         <th className="text-left p-1.5 w-40">Nat. Financeira</th>
-                        <th className="text-left p-1.5 w-40">Centro Custo</th>
+                         <th className="text-left p-1.5 w-32 hidden sm:table-cell">Nat. Financeira</th>
+                        <th className="text-left p-1.5 w-32 hidden sm:table-cell">Centro Custo</th>
                         <th className="text-right p-1.5 w-20">Qtd</th>
                         <th className="text-right p-1.5 w-24">Vlr Unit</th>
                         <th className="text-right p-1.5 w-24">Subtotal</th>
@@ -408,13 +408,13 @@ export default function QuotationsPage() {
                         <tr key={idx} className="border-t">
                            <td className="p-1.5 text-xs truncate max-w-[140px]">{getItemLabel(oi.item_id)}</td>
                            <td className="p-1.5 text-center text-xs text-muted-foreground">{getItemUnit(oi.item_id)}</td>
-                           <td className="p-1">
+                           <td className="p-1 hidden sm:table-cell">
                             <Select value={oi.natureza_financeira_id} onValueChange={(v) => { const u = [...orderItems]; u[idx].natureza_financeira_id = v; setOrderItems(u); }}>
                               <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
                               <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
                             </Select>
                           </td>
-                          <td className="p-1">
+                          <td className="p-1 hidden sm:table-cell">
                             <Select value={oi.centro_custo_id} onValueChange={(v) => { const u = [...orderItems]; u[idx].centro_custo_id = v; setOrderItems(u); }}>
                               <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="—" /></SelectTrigger>
                               <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>

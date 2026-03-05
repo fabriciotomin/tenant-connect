@@ -1875,6 +1875,7 @@ export type Database = {
         Args: { _doc_id: string }
         Returns: undefined
       }
+      confirm_service_order: { Args: { _os_id: string }; Returns: string }
       create_audit_log: {
         Args: {
           _acao: string
