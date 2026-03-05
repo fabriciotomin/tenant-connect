@@ -127,7 +127,7 @@ export default function OutboundDocumentsPage() {
   });
 
   const [newItems, setNewItems] = useState<
-    { item_id: string; quantidade: string; valor_unitario: string }[]
+    { item_id: string; quantidade: string; valor_unitario: string; natureza_financeira_id: string; centro_custo_id: string }[]
   >([]);
 
   // ---- Queries ----
@@ -189,7 +189,7 @@ export default function OutboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("items")
-        .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda")
+        .select("id, codigo, descricao, unidade_medida, saldo_estoque, custo_medio, preco_venda, natureza_venda_id, centro_custo_venda_id")
         .eq("ativo", true)
         .is("deleted_at", null)
         .order("codigo");
@@ -247,6 +247,8 @@ export default function OutboundDocumentsPage() {
         item_id: i.item_id,
         quantidade: parseFloat(i.quantidade),
         valor_unitario: parseFloat(i.valor_unitario),
+        natureza_financeira_id: i.natureza_financeira_id || null,
+        centro_custo_id: i.centro_custo_id || null,
       }));
 
       const { error: itemsError } = await supabase
@@ -314,6 +316,8 @@ export default function OutboundDocumentsPage() {
         item_id: item.item_id,
         quantidade: item.quantidade,
         valor_unitario: item.valor_unitario,
+        natureza_financeira_id: (item as any).natureza_financeira_id || null,
+        centro_custo_id: (item as any).centro_custo_id || null,
       });
       if (error) throw error;
 
@@ -391,6 +395,8 @@ export default function OutboundDocumentsPage() {
         item_id: p.item_id,
         quantidade: p.quantidade > 0 ? String(p.quantidade) : "",
         valor_unitario: String(item?.preco_venda || 0),
+        natureza_financeira_id: item?.natureza_venda_id || "",
+        centro_custo_id: item?.centro_custo_venda_id || "",
       };
     });
     setNewItems((prev) => [...prev, ...rows]);
@@ -407,7 +413,9 @@ export default function OutboundDocumentsPage() {
           item_id: p.item_id,
           quantidade: p.quantidade > 0 ? p.quantidade : 1,
           valor_unitario: item?.preco_venda || 0,
-        },
+          natureza_financeira_id: item?.natureza_venda_id || null,
+          centro_custo_id: item?.centro_custo_venda_id || null,
+        } as any,
       });
     });
     setOpenDetailItemPicker(false);
