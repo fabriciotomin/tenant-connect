@@ -67,17 +67,18 @@ export default function Auth() {
           navigate("/");
         }
       } else {
-        const metadata: any = { nome };
-        if (tenant) {
-          metadata.tenant_slug = tenant.slug;
+        if (!tenant) {
+          toast.error("Acesse pela URL da sua empresa para se cadastrar.");
+          setLoading(false);
+          return;
         }
 
         const { error } = await supabase.auth.signUp({
           email,
           password,
           options: {
-            data: metadata,
-            emailRedirectTo: window.location.origin,
+            data: { nome, tenant_id: tenant.id },
+            emailRedirectTo: window.location.origin + `/t/${tenant.slug}`,
           },
         });
         if (error) throw error;
@@ -124,9 +125,11 @@ export default function Auth() {
               : isLogin ? "Entrar no ERP" : "Criar conta"}
           </CardTitle>
           <CardDescription>
-            {isLogin
-              ? "Entre com suas credenciais para acessar o sistema"
-              : "Preencha os dados para criar sua conta"}
+            {!isLogin && !tenant
+              ? "Acesse pela URL da sua empresa para se cadastrar."
+              : isLogin
+                ? "Entre com suas credenciais para acessar o sistema"
+                : "Preencha os dados para criar sua conta"}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -145,14 +148,19 @@ export default function Auth() {
               <Label htmlFor="password" className="text-xs">Senha</Label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" required minLength={6} className="h-9" />
             </div>
-            <Button type="submit" className="w-full h-9" disabled={loading}>
+            <Button type="submit" className="w-full h-9" disabled={loading || (!isLogin && !tenant)}>
               {loading ? "Aguarde..." : isLogin ? "Entrar" : "Criar conta"}
             </Button>
           </form>
           <div className="mt-4 text-center">
-            <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
-              {isLogin ? "Não tem conta? Criar uma" : "Já tem conta? Entrar"}
-            </button>
+            {(isLogin || tenant) && (
+              <button type="button" onClick={() => setIsLogin(!isLogin)} className="text-xs text-muted-foreground hover:text-primary transition-colors">
+                {isLogin ? (tenant ? "Não tem conta? Criar uma" : "") : "Já tem conta? Entrar"}
+              </button>
+            )}
+            {!isLogin && !tenant && (
+              <p className="text-xs text-destructive">Para se cadastrar, acesse pela URL da sua empresa (ex: /t/sua-empresa/auth).</p>
+            )}
           </div>
         </CardContent>
       </Card>
