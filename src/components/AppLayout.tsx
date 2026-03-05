@@ -38,8 +38,10 @@ export function AppLayout() {
   });
 
   const handleLogout = async () => {
+    const currentSlug = tenant?.slug;
     await signOut();
-    navigate("/", { replace: true });
+    // Stay in the tenant's auth page instead of losing context
+    navigate(currentSlug ? `/t/${currentSlug}/auth` : "/auth", { replace: true });
   };
 
   const handleSwitchTenant = async (newSlug: string) => {

@@ -2,7 +2,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate, useParams } from "react-router-dom";
 import { useAuth } from "@/hooks/useAuth";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { AppLayout } from "@/components/AppLayout";
@@ -60,8 +60,12 @@ const queryClient = new QueryClient();
 
 function PublicRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
+  const { slug } = useParams<{ slug: string }>();
   if (loading) return <div className="min-h-screen flex items-center justify-center"><div className="text-sm text-muted-foreground">Carregando...</div></div>;
-  if (user) return <Navigate to="/" replace />;
+  if (user) {
+    // Preserve tenant context on redirect
+    return <Navigate to={slug ? `/t/${slug}` : "/"} replace />;
+  }
   return <>{children}</>;
 }
 
@@ -78,7 +82,9 @@ const App = () => (
           {/* Tenant-scoped auth */}
           <Route path="/t/:slug/auth" element={
             <TenantProvider>
-              <Auth />
+              <PublicRoute>
+                <Auth />
+              </PublicRoute>
             </TenantProvider>
           } />
 
