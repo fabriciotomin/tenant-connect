@@ -35,35 +35,38 @@ export function TenantProvider({ children }: { children: ReactNode }) {
   const prevTenantId = useRef<string | null>(null);
 
   useEffect(() => {
-    if (!slug) {
+    // slug comes from useParams — must be a real value, not ":slug"
+    if (!slug || slug === ":slug") {
       setTenant(null);
       setTenantLoading(false);
-      setTenantError(null);
+      setTenantError("Slug da empresa não informado na URL.");
       return;
     }
+
+    let cancelled = false;
 
     const fetchTenant = async () => {
       setTenantLoading(true);
       setTenantError(null);
 
       // Use SECURITY DEFINER RPC to resolve tenant by slug
-      // This works for both anon and authenticated users without opening RLS
+      // Works for both anon and authenticated users without opening RLS
       const { data: rpcData, error: rpcError } = await supabase
         .rpc("resolve_tenant_by_slug", { _slug: slug });
 
-      const data = rpcData && rpcData.length > 0 ? rpcData[0] : null;
-      const error = rpcError;
+      if (cancelled) return;
 
-      if (error || !data) {
+      const data = rpcData && rpcData.length > 0 ? rpcData[0] : null;
+
+      if (rpcError || !data) {
         setTenantError("Empresa não encontrada ou inativa.");
         setTenant(null);
         setTenantLoading(false);
         return;
       }
 
-      // CRITICAL: Sync profile.tenant_id BEFORE setting tenant state
-      // This ensures RLS get_tenant_id() returns the correct tenant
-      // before any queries fire
+      // Sync profile.tenant_id BEFORE setting tenant state
+      // Ensures RLS get_tenant_id() returns the correct tenant before any queries
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
@@ -76,8 +79,9 @@ export function TenantProvider({ children }: { children: ReactNode }) {
         console.warn("profile tenant sync:", e);
       }
 
-      // CRITICAL: Clear ALL cached queries when switching tenants
-      // This prevents stale data from a previous tenant from showing
+      if (cancelled) return;
+
+      // Clear ALL cached queries when switching tenants
       if (prevTenantId.current && prevTenantId.current !== data.id) {
         queryClient.clear();
       }
@@ -88,6 +92,8 @@ export function TenantProvider({ children }: { children: ReactNode }) {
     };
 
     fetchTenant();
+
+    return () => { cancelled = true; };
   }, [slug, queryClient]);
 
   return (
