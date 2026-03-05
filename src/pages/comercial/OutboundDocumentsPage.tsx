@@ -258,6 +258,8 @@ export default function OutboundDocumentsPage() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      queryClient.invalidateQueries({ queryKey: ["default_document_series"] });
+      queryClient.invalidateQueries({ queryKey: ["document_series_list"] });
       setOpenCreate(false);
       resetForm();
       toast.success("Documento de saída criado com sucesso");
@@ -275,6 +277,8 @@ export default function OutboundDocumentsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
       queryClient.invalidateQueries({ queryKey: ["items_select"] });
+      queryClient.invalidateQueries({ queryKey: ["default_document_series"] });
+      queryClient.invalidateQueries({ queryKey: ["document_series_list"] });
       setConfirmDialogId(null);
       toast.success("Documento confirmado! Estoque movimentado.");
     },
@@ -375,7 +379,7 @@ export default function OutboundDocumentsPage() {
       condicao_pagamento_id: "",
       forma_pagamento_id: "",
       serie: defaultSeries?.serie || "",
-      numero_nf: "",
+      numero_nf: defaultSeries?.proximo_numero ? String(defaultSeries.proximo_numero) : "",
     });
     setNewItems([]);
   }
@@ -515,7 +519,7 @@ export default function OutboundDocumentsPage() {
             condicao_pagamento_id: "",
             forma_pagamento_id: "",
             serie: defaultSeries?.serie || "",
-            numero_nf: "",
+            numero_nf: defaultSeries?.proximo_numero ? String(defaultSeries.proximo_numero) : "",
           });
           setNewItems([]);
           setOpenCreate(true);
