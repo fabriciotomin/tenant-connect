@@ -979,6 +979,7 @@ export type Database = {
           numero_nf: number | null
           pedido_venda_id: string | null
           serie: string | null
+          service_order_id: string | null
           status: Database["public"]["Enums"]["status_documento"] | null
           tenant_id: string | null
           valor_total: number | null
@@ -993,6 +994,7 @@ export type Database = {
           numero_nf?: number | null
           pedido_venda_id?: string | null
           serie?: string | null
+          service_order_id?: string | null
           status?: Database["public"]["Enums"]["status_documento"] | null
           tenant_id?: string | null
           valor_total?: number | null
@@ -1007,6 +1009,7 @@ export type Database = {
           numero_nf?: number | null
           pedido_venda_id?: string | null
           serie?: string | null
+          service_order_id?: string | null
           status?: Database["public"]["Enums"]["status_documento"] | null
           tenant_id?: string | null
           valor_total?: number | null
@@ -1617,6 +1620,7 @@ export type Database = {
           hora_fim: string | null
           hora_inicio: string | null
           id: string
+          numero_sequencial: number
           status: string | null
           tenant_id: string | null
           updated_at: string | null
@@ -1635,6 +1639,7 @@ export type Database = {
           hora_fim?: string | null
           hora_inicio?: string | null
           id?: string
+          numero_sequencial?: number
           status?: string | null
           tenant_id?: string | null
           updated_at?: string | null
@@ -1653,6 +1658,7 @@ export type Database = {
           hora_fim?: string | null
           hora_inicio?: string | null
           id?: string
+          numero_sequencial?: number
           status?: string | null
           tenant_id?: string | null
           updated_at?: string | null
