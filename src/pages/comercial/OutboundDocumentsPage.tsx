@@ -372,6 +372,8 @@ export default function OutboundDocumentsPage() {
       data_emissao: new Date().toISOString().split("T")[0],
       condicao_pagamento_id: "",
       forma_pagamento_id: "",
+      serie: defaultSeries?.serie || "",
+      numero_nf: "",
     });
     setNewItems([]);
   }
