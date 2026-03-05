@@ -596,6 +596,7 @@ export default function OutboundDocumentsPage() {
                 <p className="text-2xs text-muted-foreground">Deixe vazio para numeração automática</p>
               </div>
             </div>
+            <div className="grid grid-cols-2 gap-3">
               <PaymentFieldsSelect
                 condicaoId={form.condicao_pagamento_id}
                 formaId={form.forma_pagamento_id}
