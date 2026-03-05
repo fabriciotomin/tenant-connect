@@ -1582,6 +1582,7 @@ export type Database = {
       stock_movements: {
         Row: {
           created_at: string | null
+          custo_unitario: number | null
           documento_origem: string | null
           id: string
           item_id: string
@@ -1591,6 +1592,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string | null
+          custo_unitario?: number | null
           documento_origem?: string | null
           id?: string
           item_id: string
@@ -1600,6 +1602,7 @@ export type Database = {
         }
         Update: {
           created_at?: string | null
+          custo_unitario?: number | null
           documento_origem?: string | null
           id?: string
           item_id?: string
@@ -1784,6 +1787,7 @@ export type Database = {
         Args: { _doc_id: string }
         Returns: undefined
       }
+      recalc_inbound_costs: { Args: { _tenant_id: string }; Returns: undefined }
     }
     Enums: {
       app_role: "admin_global" | "admin_empresa" | "usuario"
