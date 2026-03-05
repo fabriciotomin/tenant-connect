@@ -92,7 +92,7 @@ export default function UsersPage() {
   const { data: userPermsMap = {} } = useQuery({
     queryKey: ["user_permissions_map"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("user_permissions").select("user_id, permission_id");
+      const { data, error } = await supabase.from("user_permissions").select("user_id, permission_id").is("deleted_at", null);
       if (error) throw error;
       const map: Record<string, string[]> = {};
       for (const r of data || []) {
