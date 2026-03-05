@@ -633,7 +633,7 @@ export default function UsersPage() {
                           >
                             <Checkbox
                               checked={modState === "checked" ? true : modState === "indeterminate" ? "indeterminate" : false}
-                              onCheckedChange={(e) => { e.stopPropagation?.(); toggleModule(perms); }}
+                              onCheckedChange={() => toggleModule(perms)}
                               onClick={(e) => e.stopPropagation()}
                             />
                             <ChevronRight className={`h-3 w-3 shrink-0 text-muted-foreground transition-transform duration-150 ${isExpanded ? 'rotate-90' : ''}`} />
