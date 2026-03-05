@@ -1871,6 +1871,10 @@ export type Database = {
     }
     Functions: {
       cancel_inbound_document: { Args: { _doc_id: string }; Returns: undefined }
+      cancel_outbound_document: {
+        Args: { _doc_id: string }
+        Returns: undefined
+      }
       create_audit_log: {
         Args: {
           _acao: string

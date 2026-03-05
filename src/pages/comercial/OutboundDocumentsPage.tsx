@@ -34,6 +34,7 @@ import {
 import { toast } from "sonner";
 import { format } from "date-fns";
 import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
+import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 
 const statusColors: Record<string, string> = {
   PENDENTE: "bg-yellow-100 text-yellow-800",
@@ -70,6 +71,8 @@ export default function OutboundDocumentsPage() {
 
   const [openCreate, setOpenCreate] = useState(false);
   const [openDetail, setOpenDetail] = useState(false);
+  const [openItemPicker, setOpenItemPicker] = useState(false);
+  const [openDetailItemPicker, setOpenDetailItemPicker] = useState(false);
   const [confirmDialogId, setConfirmDialogId] = useState<string | null>(null);
   const [cancelDialogId, setCancelDialogId] = useState<string | null>(null);
   const [selectedDoc, setSelectedDoc] = useState<OutboundDoc | null>(null);
@@ -146,7 +149,8 @@ export default function OutboundDocumentsPage() {
       const { data, error } = await supabase
         .from("outbound_document_items")
         .select("id, item_id, quantidade, valor_unitario, outbound_document_id, items(codigo, descricao, saldo_estoque)")
-        .eq("outbound_document_id", selectedDoc!.id);
+        .eq("outbound_document_id", selectedDoc!.id)
+        .is("deleted_at", null);
       if (error) throw error;
       return data as any as DocItem[];
     },
@@ -219,16 +223,16 @@ export default function OutboundDocumentsPage() {
 
   const cancelMutation = useMutation({
     mutationFn: async (docId: string) => {
-      const { error } = await supabase
-        .from("outbound_documents")
-        .update({ status: "CANCELADO" as any })
-        .eq("id", docId);
+      const { error } = await supabase.rpc("cancel_outbound_document" as any, {
+        _doc_id: docId,
+      });
       if (error) throw error;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["outbound_documents"] });
+      queryClient.invalidateQueries({ queryKey: ["items_select_active"] });
       setCancelDialogId(null);
-      toast.success("Documento cancelado");
+      toast.success("Documento cancelado. Estoque e financeiro revertidos.");
     },
     onError: (e: any) => toast.error(e.message),
   });
@@ -276,14 +280,15 @@ export default function OutboundDocumentsPage() {
     mutationFn: async ({ itemId, docId }: { itemId: string; docId: string }) => {
       const { error } = await supabase
         .from("outbound_document_items")
-        .delete()
+        .update({ deleted_at: new Date().toISOString() } as any)
         .eq("id", itemId);
       if (error) throw error;
 
       const { data: allItemsData2 } = await supabase
         .from("outbound_document_items")
         .select("quantidade, valor_unitario")
-        .eq("outbound_document_id", docId);
+        .eq("outbound_document_id", docId)
+        .is("deleted_at", null);
 
       const newTotal = (allItemsData2 || []).reduce(
         (sum, i: any) => sum + i.quantidade * i.valor_unitario,
@@ -311,8 +316,33 @@ export default function OutboundDocumentsPage() {
     setNewItems([]);
   }
 
-  function addNewItemRow() {
-    setNewItems([...newItems, { item_id: "", quantidade: "1", valor_unitario: "0" }]);
+  function handlePickedItems(picked: PickedItem[]) {
+    const rows = picked.map((p) => {
+      const item = items.find((i) => i.id === p.item_id);
+      return {
+        item_id: p.item_id,
+        quantidade: p.quantidade > 0 ? String(p.quantidade) : "",
+        valor_unitario: String(item?.preco_venda || 0),
+      };
+    });
+    setNewItems((prev) => [...prev, ...rows]);
+    setOpenItemPicker(false);
+  }
+
+  function handleDetailPickedItems(picked: PickedItem[]) {
+    if (!selectedDoc) return;
+    picked.forEach((p) => {
+      const item = items.find((i) => i.id === p.item_id);
+      addItemToDoc.mutate({
+        docId: selectedDoc.id,
+        item: {
+          item_id: p.item_id,
+          quantidade: p.quantidade > 0 ? p.quantidade : 1,
+          valor_unitario: item?.preco_venda || 0,
+        },
+      });
+    });
+    setOpenDetailItemPicker(false);
   }
 
   function updateNewItem(index: number, field: string, value: string) {
@@ -332,13 +362,6 @@ export default function OutboundDocumentsPage() {
         parseFloat(i.quantidade || "0") * parseFloat(i.valor_unitario || "0"),
       0
     );
-
-  // ---- Detail add item state ----
-  const [detailNewItem, setDetailNewItem] = useState({
-    item_id: "",
-    quantidade: "1",
-    valor_unitario: "0",
-  });
 
   // ---- Table columns ----
   const columns = [
@@ -469,8 +492,8 @@ export default function OutboundDocumentsPage() {
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label className="text-xs font-semibold">Itens do Documento</Label>
-                <Button type="button" variant="outline" size="sm" className="h-7 text-2xs" onClick={addNewItemRow}>
-                  <Plus className="h-3 w-3 mr-1" /> Adicionar Item
+                <Button type="button" variant="outline" size="sm" className="h-7 text-2xs" onClick={() => setOpenItemPicker(true)}>
+                  <Plus className="h-3 w-3 mr-1" /> Selecionar Itens
                 </Button>
               </div>
               {newItems.length === 0 && (
@@ -478,44 +501,38 @@ export default function OutboundDocumentsPage() {
                   Nenhum item adicionado
                 </p>
               )}
-              {newItems.map((item, idx) => (
-                <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
-                  <div className="grid grid-cols-[1fr_50px_80px_100px_32px] gap-2 items-end">
-                    <div>
-                      <Label className="text-2xs">Item</Label>
-                      <Select value={item.item_id} onValueChange={(v) => updateNewItem(idx, "item_id", v)}>
-                        <SelectTrigger className="h-7 text-2xs">
-                          <SelectValue placeholder="Selecione..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {items.map((i) => (
-                            <SelectItem key={i.id} value={i.id} className="text-2xs">
-                              {i.codigo} - {i.descricao} (Est: {i.saldo_estoque})
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              {newItems.map((item, idx) => {
+                const itemInfo = items.find(i => i.id === item.item_id);
+                return (
+                  <div key={idx} className="space-y-1 border rounded-md p-2 bg-muted/10">
+                    <div className="grid grid-cols-[1fr_50px_80px_100px_32px] gap-2 items-end">
+                      <div>
+                        <Label className="text-2xs">Item</Label>
+                        <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-muted-foreground leading-[1.75rem] truncate">
+                          {itemInfo ? `${itemInfo.codigo} - ${itemInfo.descricao}` : item.item_id.slice(0, 8)}
+                        </span>
+                      </div>
+                      <div>
+                        <Label className="text-2xs">UN</Label>
+                        <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-center text-muted-foreground leading-[1.75rem]">
+                          {itemInfo?.unidade_medida || "UN"}
+                        </span>
+                      </div>
+                      <div>
+                        <Label className="text-2xs">Qtd</Label>
+                        <Input className="h-7 text-2xs" type="number" min="0.01" step="0.01" value={item.quantidade} onChange={(e) => updateNewItem(idx, "quantidade", e.target.value)} />
+                      </div>
+                      <div>
+                        <Label className="text-2xs">Vlr Unit</Label>
+                        <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
+                      </div>
+                      <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeNewItem(idx)}>
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
                     </div>
-                    <div>
-                      <Label className="text-2xs">UN</Label>
-                      <span className="text-2xs block border rounded-md px-2 py-1 h-7 bg-muted/30 text-center text-muted-foreground leading-[1.75rem]">
-                        {items.find(i => i.id === item.item_id)?.unidade_medida || "UN"}
-                      </span>
-                    </div>
-                    <div>
-                      <Label className="text-2xs">Qtd</Label>
-                      <Input className="h-7 text-2xs" type="number" min="0.01" step="0.01" value={item.quantidade} onChange={(e) => updateNewItem(idx, "quantidade", e.target.value)} />
-                    </div>
-                    <div>
-                      <Label className="text-2xs">Vlr Unit</Label>
-                      <Input className="h-7 text-2xs" type="number" min="0" step="0.01" value={item.valor_unitario} onChange={(e) => updateNewItem(idx, "valor_unitario", e.target.value)} />
-                    </div>
-                    <Button type="button" variant="ghost" size="sm" className="h-7 w-7 p-0 text-destructive" onClick={() => removeNewItem(idx)}>
-                      <Trash2 className="h-3 w-3" />
-                    </Button>
                   </div>
-                </div>
-              ))}
+                );
+              })}
               {newItems.length > 0 && (
                 <div className="text-right text-xs font-semibold pt-1">
                   Total: R$ {calcTotal().toFixed(2)}
@@ -635,66 +652,18 @@ export default function OutboundDocumentsPage() {
                 </div>
               </div>
 
-              {/* Add item inline (only PENDENTE) */}
+              {/* Add item via picker (only PENDENTE) */}
               {selectedDoc.status === "PENDENTE" && (
                 <div className="space-y-2 border-t pt-3">
-                  <Label className="text-xs">Adicionar Item</Label>
-                  <div className="grid grid-cols-[1fr_80px_100px_60px] gap-2 items-end">
-                    <Select
-                      value={detailNewItem.item_id}
-                      onValueChange={(v) =>
-                        setDetailNewItem({ ...detailNewItem, item_id: v })
-                      }
-                    >
-                      <SelectTrigger className="h-7 text-2xs">
-                        <SelectValue placeholder="Item..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {items.map((i) => (
-                          <SelectItem key={i.id} value={i.id} className="text-2xs">
-                            {i.codigo} - {i.descricao} (Est: {i.saldo_estoque})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                    <Input
-                      className="h-7 text-2xs"
-                      type="number"
-                      placeholder="Qtd"
-                      value={detailNewItem.quantidade}
-                      onChange={(e) =>
-                        setDetailNewItem({ ...detailNewItem, quantidade: e.target.value })
-                      }
-                    />
-                    <Input
-                      className="h-7 text-2xs"
-                      type="number"
-                      placeholder="Vlr Unit"
-                      value={detailNewItem.valor_unitario}
-                      onChange={(e) =>
-                        setDetailNewItem({ ...detailNewItem, valor_unitario: e.target.value })
-                      }
-                    />
-                    <Button
-                      type="button"
-                      size="sm"
-                      className="h-7 text-2xs"
-                      disabled={!detailNewItem.item_id}
-                      onClick={() => {
-                        addItemToDoc.mutate({
-                          docId: selectedDoc.id,
-                          item: {
-                            item_id: detailNewItem.item_id,
-                            quantidade: parseFloat(detailNewItem.quantidade),
-                            valor_unitario: parseFloat(detailNewItem.valor_unitario),
-                          },
-                        });
-                        setDetailNewItem({ item_id: "", quantidade: "1", valor_unitario: "0" });
-                      }}
-                    >
-                      <Plus className="h-3 w-3" />
-                    </Button>
-                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 text-2xs"
+                    onClick={() => setOpenDetailItemPicker(true)}
+                  >
+                    <Plus className="h-3 w-3 mr-1" /> Selecionar Itens
+                  </Button>
                 </div>
               )}
 
@@ -768,6 +737,22 @@ export default function OutboundDocumentsPage() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* ITEM PICKER for Create */}
+      <ItemPickerDialog
+        open={openItemPicker}
+        onOpenChange={setOpenItemPicker}
+        onConfirm={handlePickedItems}
+        excludeIds={newItems.map((i) => i.item_id)}
+      />
+
+      {/* ITEM PICKER for Detail */}
+      <ItemPickerDialog
+        open={openDetailItemPicker}
+        onOpenChange={setOpenDetailItemPicker}
+        onConfirm={handleDetailPickedItems}
+        excludeIds={docItems.map((i) => i.item_id)}
+      />
     </div>
   );
 }
