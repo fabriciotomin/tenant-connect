@@ -119,10 +119,30 @@ export default function InboundDocumentsPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("inbound_documents")
-        .select("*, suppliers(razao_social), purchase_orders(numero_sequencial)")
+        .select("*, suppliers(razao_social)")
         .order("created_at", { ascending: false });
       if (error) throw error;
-      return (data || []) as unknown as InboundDoc[];
+
+      // Fetch PO numbers separately since there's no FK relationship in PostgREST cache
+      const docsWithPO = data || [];
+      const poIds = [...new Set(docsWithPO.filter((d: any) => d.purchase_order_id).map((d: any) => d.purchase_order_id))];
+      let poMap: Record<string, number> = {};
+      if (poIds.length > 0) {
+        const { data: pos } = await supabase
+          .from("purchase_orders")
+          .select("id, numero_sequencial")
+          .in("id", poIds);
+        if (pos) {
+          poMap = Object.fromEntries(pos.map((p: any) => [p.id, p.numero_sequencial]));
+        }
+      }
+
+      return docsWithPO.map((d: any) => ({
+        ...d,
+        purchase_orders: d.purchase_order_id && poMap[d.purchase_order_id]
+          ? { numero_sequencial: poMap[d.purchase_order_id] }
+          : null,
+      })) as unknown as InboundDoc[];
     },
   });
 
