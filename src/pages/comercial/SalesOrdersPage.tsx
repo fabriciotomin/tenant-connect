@@ -141,7 +141,8 @@ export default function SalesOrdersPage() {
         } as any).eq("id", editingId);
         if (error) throw error;
 
-        const { error: de } = await supabase.from("sale_items").delete().eq("sale_id", editingId);
+        // Soft-delete existing items
+        const { error: de } = await supabase.from("sale_items").update({ deleted_at: new Date().toISOString() } as any).eq("sale_id", editingId).is("deleted_at", null);
         if (de) throw de;
 
         const { error: ie } = await supabase.from("sale_items").insert(
@@ -151,7 +152,6 @@ export default function SalesOrdersPage() {
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
             preco_unitario: parseFloat(i.valor_unitario),
-            total_item: parseFloat(i.quantidade) * parseFloat(i.valor_unitario),
           }))
         );
         if (ie) throw ie;
@@ -172,7 +172,6 @@ export default function SalesOrdersPage() {
             item_id: i.item_id,
             quantidade: parseFloat(i.quantidade),
             preco_unitario: parseFloat(i.valor_unitario),
-            total_item: parseFloat(i.quantidade) * parseFloat(i.valor_unitario),
           }))
         );
         if (ie) throw ie;
@@ -267,7 +266,6 @@ export default function SalesOrdersPage() {
             item_id: i.item_id,
             quantidade: i.quantidade,
             preco_unitario: i.preco_unitario,
-            total_item: i.total_item,
           }))
         );
         if (ie) throw ie;
