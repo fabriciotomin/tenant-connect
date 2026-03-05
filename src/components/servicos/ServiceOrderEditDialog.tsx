@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/hooks/useAuth";
-import { useFinancialClassification } from "@/hooks/useFinancialClassification";
+
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -31,7 +31,7 @@ interface Props {
 export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   const { user } = useAuth();
   const queryClient = useQueryClient();
-  const { natures, costCenters } = useFinancialClassification();
+  
   const [pickerOpen, setPickerOpen] = useState(false);
   const [form, setForm] = useState({ customer_id: "", condicao_pagamento_id: "", data_inicio: "", hora_inicio: "", data_fim: "", hora_fim: "" });
   const [editItems, setEditItems] = useState<ItemRow[]>([]);
@@ -82,9 +82,9 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   });
 
   const { data: allItems = [] } = useQuery({
-    queryKey: ["items_select_active"],
+    queryKey: ["items_select_active_with_classification"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, tipo_item, preco_venda, natureza_venda_id, centro_custo_venda_id").eq("ativo", true).order("codigo");
       if (error) throw error;
       return data;
     },
@@ -121,13 +121,16 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
   }, [orderItems, open]);
 
   const handlePickerConfirm = (pickedItems: PickedItem[]) => {
-    const added = pickedItems.map((p) => ({
-      item_id: p.item_id,
-      quantidade: String(p.quantidade),
-      valor_unitario: String(p.valor_unitario),
-      natureza_financeira_id: "",
-      centro_custo_id: "",
-    }));
+    const added = pickedItems.map((p) => {
+      const itemData = allItems.find(i => i.id === p.item_id);
+      return {
+        item_id: p.item_id,
+        quantidade: String(p.quantidade),
+        valor_unitario: String(p.valor_unitario),
+        natureza_financeira_id: itemData?.natureza_venda_id || "",
+        centro_custo_id: itemData?.centro_custo_venda_id || "",
+      };
+    });
     setEditItems((prev) => [...prev, ...added]);
     setPickerOpen(false);
   };
@@ -282,16 +285,6 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
                           <Trash2 className="h-3 w-3 text-destructive" />
                         </Button>
                       </div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-2">
-                      <Select value={ni.natureza_financeira_id} onValueChange={(v) => { const u = [...editItems]; u[realIdx] = { ...u[realIdx], natureza_financeira_id: v }; setEditItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Natureza Financeira" /></SelectTrigger>
-                        <SelectContent>{natures.map(n => <SelectItem key={n.id} value={n.id} className="text-2xs">{n.codigo} - {n.descricao}</SelectItem>)}</SelectContent>
-                      </Select>
-                      <Select value={ni.centro_custo_id} onValueChange={(v) => { const u = [...editItems]; u[realIdx] = { ...u[realIdx], centro_custo_id: v }; setEditItems(u); }}>
-                        <SelectTrigger className="h-7 text-2xs"><SelectValue placeholder="Centro de Custo" /></SelectTrigger>
-                        <SelectContent>{costCenters.map(c => <SelectItem key={c.id} value={c.id} className="text-2xs">{c.codigo} - {c.descricao}</SelectItem>)}</SelectContent>
-                      </Select>
                     </div>
                   </div>
                 );
