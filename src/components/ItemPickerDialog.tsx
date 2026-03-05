@@ -32,6 +32,7 @@ export function ItemPickerDialog({ open, onOpenChange, onConfirm, excludeIds = [
         .from("items")
         .select("id, codigo, descricao, unidade_medida, saldo_estoque, preco_venda, category_id, item_categories(nome)")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;

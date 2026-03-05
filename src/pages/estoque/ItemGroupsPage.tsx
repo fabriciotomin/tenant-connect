@@ -35,7 +35,7 @@ export default function ItemGroupsPage() {
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["item_groups"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("item_groups").select("*").order("codigo");
+      const { data, error } = await supabase.from("item_groups").select("*").is("deleted_at", null).order("codigo");
       if (error) throw error;
       return data as ItemGroup[];
     },
@@ -74,12 +74,13 @@ export default function ItemGroupsPage() {
       const { count: childCount } = await supabase
         .from("item_groups")
         .select("id", { count: "exact", head: true })
-        .eq("codigo_pai", id);
+        .eq("codigo_pai", id)
+        .is("deleted_at", null);
       if (childCount && childCount > 0) {
         throw new Error(`Este grupo possui ${childCount} subgrupo(s) vinculado(s). Remova-os antes de excluir.`);
       }
 
-      const { error } = await supabase.from("item_groups").delete().eq("id", id);
+      const { error } = await supabase.from("item_groups").update({ deleted_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
@@ -98,7 +99,8 @@ export default function ItemGroupsPage() {
     const { count: childCount } = await supabase
       .from("item_groups")
       .select("id", { count: "exact", head: true })
-      .eq("codigo_pai", id);
+      .eq("codigo_pai", id)
+      .is("deleted_at", null);
 
     if (childCount && childCount > 0) {
       setDeleteBlockedMsg(`Este grupo possui ${childCount} subgrupo(s) vinculado(s). Remova-os antes de excluir.`);

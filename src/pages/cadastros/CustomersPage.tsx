@@ -31,7 +31,7 @@ export default function CustomersPage() {
   const { data: customers = [], isLoading } = useQuery({
     queryKey: ["customers"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("id, razao_social, nome_fantasia, cnpj, telefone, email, ativo").order("razao_social");
+      const { data, error } = await supabase.from("customers").select("id, razao_social, nome_fantasia, cnpj, telefone, email, ativo").is("deleted_at", null).order("razao_social");
       if (error) throw error;
       return data as Customer[];
     },

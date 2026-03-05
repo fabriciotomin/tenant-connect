@@ -57,6 +57,7 @@ export default function ServiceOrdersPage() {
       const { data, error } = await supabase
         .from("service_orders")
         .select("*, customers(razao_social)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
       return data as ServiceOrder[];
@@ -66,7 +67,7 @@ export default function ServiceOrdersPage() {
   const { data: customers = [] } = useQuery({
     queryKey: ["customers_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).order("razao_social");
+      const { data, error } = await supabase.from("customers").select("id, razao_social").eq("ativo", true).is("deleted_at", null).order("razao_social");
       if (error) throw error;
       return data;
     },
@@ -75,7 +76,7 @@ export default function ServiceOrdersPage() {
   const { data: paymentConditions = [] } = useQuery({
     queryKey: ["payment_conditions_select"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("payment_conditions").select("id, descricao").order("descricao");
+      const { data, error } = await supabase.from("payment_conditions").select("id, descricao").is("deleted_at", null).order("descricao");
       if (error) throw error;
       return data;
     },
@@ -84,7 +85,7 @@ export default function ServiceOrdersPage() {
   const { data: items = [] } = useQuery({
     queryKey: ["items_select_active"],
     queryFn: async () => {
-      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda").eq("ativo", true).order("codigo");
+      const { data, error } = await supabase.from("items").select("id, codigo, descricao, unidade_medida, tipo_item, preco_venda").eq("ativo", true).is("deleted_at", null).order("codigo");
       if (error) throw error;
       return data;
     },

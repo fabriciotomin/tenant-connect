@@ -120,6 +120,7 @@ export default function InboundDocumentsPage() {
       const { data, error } = await supabase
         .from("inbound_documents")
         .select("*, suppliers(razao_social)")
+        .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
 
@@ -153,6 +154,7 @@ export default function InboundDocumentsPage() {
         .from("suppliers")
         .select("id, razao_social, cnpj")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("razao_social");
       if (error) throw error;
       return data;
@@ -165,6 +167,7 @@ export default function InboundDocumentsPage() {
       const { data, error } = await supabase
         .from("payment_conditions")
         .select("id, descricao, numero_parcelas, dias_entre_parcelas")
+        .is("deleted_at", null)
         .order("descricao");
       if (error) throw error;
       return data;
@@ -178,6 +181,7 @@ export default function InboundDocumentsPage() {
         .from("formas_pagamento")
         .select("id, nome")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("nome");
       if (error) throw error;
       return data;
@@ -191,6 +195,7 @@ export default function InboundDocumentsPage() {
         .from("items")
         .select("id, codigo, descricao, saldo_estoque, custo_medio, unidade_medida")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data;
@@ -206,6 +211,7 @@ export default function InboundDocumentsPage() {
         .from("purchase_orders")
         .select("id, numero_sequencial, status, fornecedor_id, suppliers(razao_social)")
         .eq("status", "ABERTO")
+        .is("deleted_at", null)
         .order("numero_sequencial", { ascending: false });
       if (error) throw error;
       return (data || []) as unknown as PurchaseOrder[];

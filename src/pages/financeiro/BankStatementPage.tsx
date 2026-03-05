@@ -63,6 +63,7 @@ export default function BankStatementPage() {
         .from("banks")
         .select("id, codigo, nome, saldo_inicial")
         .eq("ativo", true)
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data as Bank[];
@@ -79,6 +80,7 @@ export default function BankStatementPage() {
         .from("bank_movements")
         .select("id, data_movimento, tipo, valor, descricao, banco_id")
         .eq("banco_id", filters.bankId)
+        .is("deleted_at", null)
         .order("data_movimento", { ascending: true })
         .order("created_at", { ascending: true });
       if (filters.di) q = q.gte("data_movimento", filters.di);

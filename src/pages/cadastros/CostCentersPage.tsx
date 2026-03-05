@@ -34,6 +34,7 @@ export default function CostCentersPage() {
       const { data, error } = await supabase
         .from("cost_centers")
         .select("id, codigo, descricao, ativo")
+        .is("deleted_at", null)
         .order("codigo");
       if (error) throw error;
       return data as CC[];
@@ -78,7 +79,7 @@ export default function CostCentersPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("cost_centers").delete().eq("id", id);
+      const { error } = await supabase.from("cost_centers").update({ deleted_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {

@@ -44,6 +44,7 @@ export default function FinancialNaturesPage() {
       const { data, error } = await supabase
         .from("financial_natures")
         .select("id, codigo, descricao, tipo, tipo_natureza, ordem, ativo")
+        .is("deleted_at", null)
         .order("ordem");
       if (error) throw error;
       return data as FN[];
@@ -67,7 +68,7 @@ export default function FinancialNaturesPage() {
 
   const deleteMut = useMutation({
     mutationFn: async (id: string) => {
-      const { error } = await supabase.from("financial_natures").delete().eq("id", id);
+      const { error } = await supabase.from("financial_natures").update({ deleted_at: new Date().toISOString() } as any).eq("id", id);
       if (error) throw error;
     },
     onSuccess: () => {
