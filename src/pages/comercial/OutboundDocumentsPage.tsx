@@ -590,14 +590,13 @@ export default function OutboundDocumentsPage() {
               <div className="space-y-1.5">
                 <Label className="text-xs">Número NF</Label>
                 <Input
-                  className="h-8 text-xs"
+                  className="h-8 text-xs bg-muted/30"
                   type="number"
-                  min="1"
-                  placeholder="Automático"
                   value={form.numero_nf}
-                  onChange={(e) => setForm({ ...form, numero_nf: e.target.value })}
+                  disabled
+                  readOnly
                 />
-                <p className="text-2xs text-muted-foreground">Deixe vazio para numeração automática</p>
+                <p className="text-2xs text-muted-foreground">Gerado automaticamente pelo sistema</p>
               </div>
             </div>
             <div className="grid grid-cols-2 gap-3">
