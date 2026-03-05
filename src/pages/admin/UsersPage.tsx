@@ -406,7 +406,8 @@ export default function UsersPage() {
             return (
               <div className="flex gap-1">
                 <Button variant="ghost" size="sm" className="h-6 text-2xs px-2" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>
-                  Editar
+                  <Shield className="h-3 w-3 mr-1" /> Permissões
+                </Button>
                 </Button>
                 <Button variant="ghost" size="sm" className="h-6 text-2xs px-2 text-destructive hover:text-destructive" onClick={(e) => { e.stopPropagation(); setDeleteUser(r); }}>
                   <Trash2 className="h-3 w-3" />
