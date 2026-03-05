@@ -11,6 +11,8 @@ import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
+import { Trash2 } from "lucide-react";
 
 interface ItemGroup {
   id: string;
@@ -27,6 +29,8 @@ export default function ItemGroupsPage() {
   const [open, setOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState({ codigo: "", descricao: "", tipo: "ANALITICO", codigo_pai: "", ativo: true });
+  const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [deleteBlockedMsg, setDeleteBlockedMsg] = useState<string | null>(null);
 
   const { data: groups = [], isLoading } = useQuery({
     queryKey: ["item_groups"],
@@ -64,6 +68,46 @@ export default function ItemGroupsPage() {
     onError: (e: any) => toast.error(e.message),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: string) => {
+      // Check for child groups
+      const { count: childCount } = await supabase
+        .from("item_groups")
+        .select("id", { count: "exact", head: true })
+        .eq("codigo_pai", id);
+      if (childCount && childCount > 0) {
+        throw new Error(`Este grupo possui ${childCount} subgrupo(s) vinculado(s). Remova-os antes de excluir.`);
+      }
+
+      const { error } = await supabase.from("item_groups").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["item_groups"] });
+      setDeleteId(null);
+      toast.success("Grupo excluído com sucesso");
+    },
+    onError: (e: any) => {
+      setDeleteId(null);
+      toast.error(e.message);
+    },
+  });
+
+  async function handleDeleteClick(id: string) {
+    // Check for child groups
+    const { count: childCount } = await supabase
+      .from("item_groups")
+      .select("id", { count: "exact", head: true })
+      .eq("codigo_pai", id);
+
+    if (childCount && childCount > 0) {
+      setDeleteBlockedMsg(`Este grupo possui ${childCount} subgrupo(s) vinculado(s). Remova-os antes de excluir.`);
+      return;
+    }
+
+    setDeleteId(id);
+  }
+
   function openEdit(g: ItemGroup) {
     setEditingId(g.id);
     setForm({ codigo: g.codigo, descricao: g.descricao, tipo: g.tipo, codigo_pai: g.codigo_pai || "", ativo: g.ativo });
@@ -85,7 +129,14 @@ export default function ItemGroupsPage() {
       </Badge>
     )},
     { key: "ativo", label: "Status", render: (r: ItemGroup) => <Badge variant={r.ativo ? "default" : "secondary"} className="text-2xs">{r.ativo ? "Ativo" : "Inativo"}</Badge> },
-    { key: "acoes", label: "", render: (r: ItemGroup) => <Button variant="ghost" size="sm" className="h-6 text-2xs" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>Editar</Button> },
+    { key: "acoes", label: "", render: (r: ItemGroup) => (
+      <div className="flex gap-1">
+        <Button variant="ghost" size="sm" className="h-6 text-2xs" onClick={(e) => { e.stopPropagation(); openEdit(r); }}>Editar</Button>
+        <Button variant="ghost" size="sm" className="h-6 text-2xs text-destructive" onClick={(e) => { e.stopPropagation(); handleDeleteClick(r.id); }}>
+          <Trash2 className="h-3 w-3" />
+        </Button>
+      </div>
+    )},
   ];
 
   return (
@@ -154,6 +205,37 @@ export default function ItemGroupsPage() {
           </form>
         </DialogContent>
       </Dialog>
+
+      {/* Delete confirmation */}
+      <AlertDialog open={!!deleteId} onOpenChange={(v) => { if (!v) setDeleteId(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Excluir Grupo</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">
+              Tem certeza que deseja excluir este grupo? Esta ação não pode ser desfeita.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs">Cancelar</AlertDialogCancel>
+            <AlertDialogAction className="text-xs bg-destructive text-destructive-foreground hover:bg-destructive/90" onClick={() => deleteId && deleteMutation.mutate(deleteId)}>
+              Excluir
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Blocked delete info */}
+      <AlertDialog open={!!deleteBlockedMsg} onOpenChange={(v) => { if (!v) setDeleteBlockedMsg(null); }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-sm">Exclusão Bloqueada</AlertDialogTitle>
+            <AlertDialogDescription className="text-xs">{deleteBlockedMsg}</AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="text-xs">Entendi</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
