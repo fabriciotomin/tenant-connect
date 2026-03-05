@@ -232,7 +232,11 @@ export default function InboundDocumentsPage() {
         .eq("inbound_document_id", selectedDoc!.id)
         .is("deleted_at", null);
       if (error) throw error;
-      return data as unknown as DocItem[];
+      return (data || []).map((d: any) => ({
+        ...d,
+        natureza_financeira_id: d.natureza_financeira_id || null,
+        centro_custo_id: d.centro_custo_id || null,
+      })) as unknown as DocItem[];
     },
   });
 
