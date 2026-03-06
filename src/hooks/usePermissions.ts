@@ -14,7 +14,7 @@ interface PermissionEntry {
  */
 export function usePermissions() {
   const { user } = useAuth();
-  const { isAdminGlobal, loading: profileLoading } = useUserProfile();
+  const { isAdminGlobal, isAdminEmpresa, loading: profileLoading } = useUserProfile();
 
   // Debug: log state on every render
   console.log("[usePermissions] render →", {
