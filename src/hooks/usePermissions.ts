@@ -16,13 +16,19 @@ export function usePermissions() {
   const { user } = useAuth();
   const { isAdminGlobal, loading: profileLoading } = useUserProfile();
 
+  // Debug: log state on every render
+  console.log("[usePermissions] render →", {
+    userId: user?.id,
+    isAdminGlobal,
+    profileLoading,
+    queryEnabled: !!user && !profileLoading && !isAdminGlobal,
+  });
+
   const { data: permissions = [], isLoading } = useQuery<PermissionEntry[]>({
     queryKey: ["my_permissions", user?.id],
     enabled: !!user && !profileLoading && !isAdminGlobal,
     queryFn: async () => {
-      // Debug: log auth context
-      console.log("[usePermissions] auth.uid:", user!.id);
-      console.log("[usePermissions] isAdminGlobal:", isAdminGlobal);
+      console.log("[usePermissions] queryFn executing for user:", user!.id);
 
       const { data, error } = await supabase
         .from("user_permissions")
@@ -40,7 +46,7 @@ export function usePermissions() {
         action: row.permissions.action,
       }));
 
-      console.log("[usePermissions] loaded permissions:", mapped.length, mapped);
+      console.log("[usePermissions] loaded", mapped.length, "permissions:", mapped);
       return mapped;
     },
     staleTime: 60_000,
