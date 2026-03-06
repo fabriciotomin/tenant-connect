@@ -493,12 +493,14 @@ export default function UsersPage() {
             <TabsTrigger value="ativos" className="text-xs">
               Ativos ({users.length})
             </TabsTrigger>
-            <TabsTrigger value="pendentes" className="text-xs">
-              Pendentes ({pendingUsers.length})
-              {pendingUsers.length > 0 && (
-                <Badge variant="destructive" className="ml-1.5 text-2xs h-4 px-1">{pendingUsers.length}</Badge>
-              )}
-            </TabsTrigger>
+            {isAdminGlobal && (
+              <TabsTrigger value="pendentes" className="text-xs">
+                Pendentes ({pendingUsers.length})
+                {pendingUsers.length > 0 && (
+                  <Badge variant="destructive" className="ml-1.5 text-2xs h-4 px-1">{pendingUsers.length}</Badge>
+                )}
+              </TabsTrigger>
+            )}
           </TabsList>
           <TabsContent value="ativos">
             <DataTable
@@ -509,15 +511,17 @@ export default function UsersPage() {
               filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
             />
           </TabsContent>
-          <TabsContent value="pendentes">
-            <DataTable
-              columns={pendingColumns}
-              data={pendingUsers}
-              loading={pendingLoading}
-              searchPlaceholder="Buscar pendente..."
-              filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
-            />
-          </TabsContent>
+          {isAdminGlobal && (
+            <TabsContent value="pendentes">
+              <DataTable
+                columns={pendingColumns}
+                data={pendingUsers}
+                loading={pendingLoading}
+                searchPlaceholder="Buscar pendente..."
+                filterFn={(r, s) => r.nome.toLowerCase().includes(s) || r.email.toLowerCase().includes(s)}
+              />
+            </TabsContent>
+          )}
         </Tabs>
       ) : (
         <DataTable
