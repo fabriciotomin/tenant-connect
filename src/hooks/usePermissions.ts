@@ -14,7 +14,7 @@ interface PermissionEntry {
  */
 export function usePermissions() {
   const { user } = useAuth();
-  const { isAdminGlobal, loading: profileLoading } = useUserProfile();
+  const { isAdminGlobal, isAdminEmpresa, loading: profileLoading } = useUserProfile();
 
   // Debug: log state on every render
   console.log("[usePermissions] render →", {
@@ -52,8 +52,22 @@ export function usePermissions() {
     staleTime: 60_000,
   });
 
+  const GLOBAL_ONLY_MODULES = ["Administração - Empresas"];
+  const GLOBAL_ONLY_ACTIONS: Record<string, string[]> = {
+    "Administração - Usuários": ["Aprovar", "Rejeitar"],
+  };
+
   const can = (module: string, action: string): boolean => {
     if (isAdminGlobal) return true;
+
+    if (isAdminEmpresa()) {
+      // Block global-only modules
+      if (GLOBAL_ONLY_MODULES.includes(module)) return false;
+      // Block global-only actions on specific modules
+      if (GLOBAL_ONLY_ACTIONS[module]?.includes(action)) return false;
+      return true;
+    }
+
     return permissions.some((p) => p.module === module && p.action === action);
   };
 
