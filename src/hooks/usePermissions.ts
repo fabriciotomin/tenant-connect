@@ -20,6 +20,10 @@ export function usePermissions() {
     queryKey: ["my_permissions", user?.id],
     enabled: !!user && !profileLoading && !isAdminGlobal,
     queryFn: async () => {
+      // Debug: log auth context
+      console.log("[usePermissions] auth.uid:", user!.id);
+      console.log("[usePermissions] isAdminGlobal:", isAdminGlobal);
+
       const { data, error } = await supabase
         .from("user_permissions")
         .select("permission_id, permissions!inner(module, action)")
@@ -27,14 +31,17 @@ export function usePermissions() {
         .is("deleted_at", null);
 
       if (error) {
-        console.warn("usePermissions error:", error);
+        console.error("[usePermissions] query error:", error);
         return [];
       }
 
-      return (data || []).map((row: any) => ({
+      const mapped = (data || []).map((row: any) => ({
         module: row.permissions.module,
         action: row.permissions.action,
       }));
+
+      console.log("[usePermissions] loaded permissions:", mapped.length, mapped);
+      return mapped;
     },
     staleTime: 60_000,
   });
