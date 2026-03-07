@@ -2,7 +2,7 @@ import { useQuery } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { format } from "date-fns";
+import { format, parseISO } from "date-fns";
 
 const statusColors: Record<string, string> = {
   RASCUNHO: "bg-yellow-100 text-yellow-800",
@@ -81,7 +81,7 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <span className="text-muted-foreground">Data Início:</span>
-                <p>{o.data_inicio || "—"}</p>
+                <p>{o.data_inicio ? format(parseISO(o.data_inicio), "dd/MM/yyyy") : "—"}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Hora Início:</span>
@@ -89,7 +89,7 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
               </div>
               <div>
                 <span className="text-muted-foreground">Data Fim:</span>
-                <p>{o.data_fim || "—"}</p>
+                <p>{o.data_fim ? format(parseISO(o.data_fim), "dd/MM/yyyy") : "—"}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Hora Fim:</span>
