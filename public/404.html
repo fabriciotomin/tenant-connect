@@ -1,0 +1,11 @@
+<!doctype html>
+<html>
+  <head>
+    <script>
+      // SPA fallback: save the deep path and redirect to root.
+      // index.html will restore it via history.replaceState before React mounts.
+      sessionStorage.setItem('spa-redirect', location.pathname + location.search + location.hash);
+      location.replace('/');
+    </script>
+  </head>
+</html>
