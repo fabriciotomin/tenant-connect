@@ -22,6 +22,7 @@ import {
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Trash2, CheckCircle, XCircle, Upload, Link2, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { useFinancialClassification } from "@/hooks/useFinancialClassification";
