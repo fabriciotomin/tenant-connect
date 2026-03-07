@@ -222,45 +222,51 @@ export default function BankStatementPage() {
           <div className="border rounded-lg overflow-hidden">
             <Table>
               <TableHeader>
-                <TableRow>
+                <TableRow className="bg-muted/40">
                   <TableHead className="text-xs w-24">Data</TableHead>
                   <TableHead className="text-xs w-24">Tipo</TableHead>
                   <TableHead className="text-xs">Referência</TableHead>
                   <TableHead className="text-xs">Natureza</TableHead>
                   <TableHead className="text-xs">Centro Custo</TableHead>
-                  <TableHead className="text-xs text-right w-32">Valor</TableHead>
-                  <TableHead className="text-xs text-right w-32">Saldo</TableHead>
+                  <TableHead className="text-xs text-right w-36">Valor</TableHead>
+                  <TableHead className="text-xs text-right w-36">Saldo</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {rows.map(r => (
-                  <TableRow key={r.id}>
-                    <TableCell className="text-xs">{formatDateBR(r.data)}</TableCell>
-                    <TableCell className="text-xs">
-                      <div className="flex items-center gap-1">
-                        {r.tipo === "ENTRADA" ? (
-                          <ArrowDownCircle className="h-3.5 w-3.5 text-green-600" />
-                        ) : (
-                          <ArrowUpCircle className="h-3.5 w-3.5 text-red-600" />
-                        )}
-                        <Badge variant="outline" className="text-2xs">
-                          {r.tipo === "ENTRADA" ? "Entrada" : "Saída"}
-                        </Badge>
-                      </div>
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{r.referencia || "—"}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {r.financial_natures ? `${r.financial_natures.codigo} - ${r.financial_natures.descricao}` : "—"}
-                    </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">
-                      {r.cost_centers ? `${r.cost_centers.codigo} - ${r.cost_centers.descricao}` : "—"}
-                    </TableCell>
-                    <TableCell className={`text-xs text-right font-mono ${r.tipo === "ENTRADA" ? "text-green-700" : "text-red-700"}`}>
-                      {r.tipo === "ENTRADA" ? "+" : "-"}{fmt(r.valor)}
-                    </TableCell>
-                    <TableCell className="text-xs text-right font-mono font-medium">{fmt(r.saldo)}</TableCell>
-                  </TableRow>
-                ))}
+                {rows.map((r, idx) => {
+                  const isEntrada = r.tipo === "ENTRADA";
+                  const valorDisplay = isEntrada ? r.valor : -r.valor;
+                  return (
+                    <TableRow key={r.id} className={idx % 2 === 0 ? "bg-background" : "bg-muted/20"}>
+                      <TableCell className="text-xs font-mono">{formatDateBR(r.data)}</TableCell>
+                      <TableCell className="text-xs">
+                        <div className="flex items-center gap-1.5">
+                          {isEntrada ? (
+                            <ArrowDownCircle className="h-3.5 w-3.5 text-green-600" />
+                          ) : (
+                            <ArrowUpCircle className="h-3.5 w-3.5 text-red-600" />
+                          )}
+                          <Badge variant="outline" className={`text-2xs ${isEntrada ? "border-green-300 text-green-700" : "border-red-300 text-red-700"}`}>
+                            {isEntrada ? "Entrada" : "Saída"}
+                          </Badge>
+                        </div>
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{r.referencia || "—"}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.financial_natures ? `${r.financial_natures.codigo} - ${r.financial_natures.descricao}` : "—"}
+                      </TableCell>
+                      <TableCell className="text-xs text-muted-foreground">
+                        {r.cost_centers ? `${r.cost_centers.codigo} - ${r.cost_centers.descricao}` : "—"}
+                      </TableCell>
+                      <TableCell className={`text-xs text-right font-mono font-semibold ${isEntrada ? "text-green-700" : "text-red-700"}`}>
+                        {fmt(valorDisplay)}
+                      </TableCell>
+                      <TableCell className={`text-xs text-right font-mono font-bold ${r.saldo >= 0 ? "text-foreground" : "text-red-700"}`}>
+                        {fmt(r.saldo)}
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
               </TableBody>
             </Table>
           </div>
