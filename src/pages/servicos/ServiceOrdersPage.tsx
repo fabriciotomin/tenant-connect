@@ -138,6 +138,7 @@ export default function ServiceOrdersPage() {
             valor_unitario: parseFloat(i.valor_unitario),
             natureza_financeira_id: i.natureza_financeira_id || null,
             centro_custo_id: i.centro_custo_id || null,
+            tenant_id: tenant!.id,
           }))
         );
         if (ie) throw ie;
@@ -199,6 +200,7 @@ export default function ServiceOrdersPage() {
             valor_unitario: i.valor_unitario,
             natureza_financeira_id: i.natureza_financeira_id || null,
             centro_custo_id: i.centro_custo_id || null,
+            tenant_id: tenant!.id,
           }))
         );
         if (ie) throw ie;
