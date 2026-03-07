@@ -191,6 +191,7 @@ export function ServiceOrderEditDialog({ orderId, open, onOpenChange }: Props) {
             valor_unitario: parseFloat(i.valor_unitario),
             natureza_financeira_id: i.natureza_financeira_id || null,
             centro_custo_id: i.centro_custo_id || null,
+            tenant_id: order?.tenant_id,
           }))
         );
         if (ie) throw ie;
