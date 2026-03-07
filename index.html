@@ -3,26 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <!-- TODO: Set the document title to the name of your application -->
     <title>Simplifiquei</title>
     <meta name="description" content="ERP completo para pequena e média empresa">
     <meta name="author" content="Lovable" />
-
-    <!-- TODO: Update og:title to match your application name -->
-    
-    
     <meta property="og:type" content="website" />
     <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4e826026-fedd-48dd-9d27-47109de1e8cc/id-preview-ea837382--e71abe6a-a179-4113-bd17-469329538896.lovable.app-1771991413492.png">
-
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/4e826026-fedd-48dd-9d27-47109de1e8cc/id-preview-ea837382--e71abe6a-a179-4113-bd17-469329538896.lovable.app-1771991413492.png">
     <meta property="og:title" content="Simplifiquei">
-  <meta name="twitter:title" content="Simplifiquei">
-  <meta property="og:description" content="ERP completo para pequena e média empresa">
-  <meta name="twitter:description" content="ERP completo para pequena e média empresa">
-</head>
-
+    <meta name="twitter:title" content="Simplifiquei">
+    <meta property="og:description" content="ERP completo para pequena e média empresa">
+    <meta name="twitter:description" content="ERP completo para pequena e média empresa">
+    <!-- SPA deep-link restore: if 404.html saved a path, restore it before React mounts -->
+    <script>
+      (function () {
+        var redirect = sessionStorage.getItem('spa-redirect');
+        if (redirect) {
+          sessionStorage.removeItem('spa-redirect');
+          history.replaceState(null, '', redirect);
+        }
+      })();
+    </script>
+  </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
