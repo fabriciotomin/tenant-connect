@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
