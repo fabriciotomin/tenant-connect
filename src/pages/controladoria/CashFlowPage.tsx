@@ -7,6 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { format, addDays } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 
 export default function CashFlowPage() {
   const today = new Date().toISOString().split("T")[0];

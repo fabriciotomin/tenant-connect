@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Trash2, FileOutput, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
 import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";

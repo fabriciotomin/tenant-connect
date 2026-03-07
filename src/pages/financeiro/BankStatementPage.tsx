@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Search, ArrowDownCircle, ArrowUpCircle, Plus } from "lucide-react";
 
 interface Bank {

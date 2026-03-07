@@ -6,6 +6,7 @@ import { DataTable } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 

@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Trash2, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 

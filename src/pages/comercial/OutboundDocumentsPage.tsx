@@ -484,7 +484,7 @@ export default function OutboundDocumentsPage() {
     {
       key: "data_emissao",
       label: "Emissão",
-      render: (r: OutboundDoc) => format(new Date(r.data_emissao), "dd/MM/yyyy"),
+      render: (r: OutboundDoc) => formatDateBR(r.data_emissao),
     },
     {
       key: "acoes",

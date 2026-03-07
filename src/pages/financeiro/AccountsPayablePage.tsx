@@ -15,6 +15,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { FinancialFilters, applyFinancialFilters, emptyFilters, type FinancialFilterValues } from "@/components/FinancialFilters";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Plus, Download } from "lucide-react";
 
 const statusColors: Record<string, string> = {
