@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Trash2, FileOutput, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
 import { PaymentFieldsSelect } from "@/components/PaymentFieldsSelect";
@@ -312,7 +313,7 @@ export default function SalesOrdersPage() {
     { key: "cliente", label: "Cliente", render: (r: SalesOrder) => r.customers?.razao_social || "—" },
     { key: "status", label: "Status", render: (r: SalesOrder) => <Badge className={`text-2xs ${statusColors[r.status]}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor", render: (r: SalesOrder) => `R$ ${Number(r.valor_total).toFixed(2)}` },
-    { key: "created_at", label: "Criado", render: (r: SalesOrder) => format(new Date(r.created_at), "dd/MM/yyyy") },
+    { key: "created_at", label: "Criado", render: (r: SalesOrder) => formatDateTimeBR(r.created_at, "dd/MM/yyyy") },
     {
       key: "acoes", label: "Ações", render: (r: SalesOrder) => {
         const isDraft = r.status === "RASCUNHO";

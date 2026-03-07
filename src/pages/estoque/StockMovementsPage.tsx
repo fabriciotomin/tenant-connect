@@ -6,6 +6,7 @@ import { DataTable } from "@/components/DataTable";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { format } from "date-fns";
+import { formatDateTimeBR } from "@/lib/dateUtils";
 import { RefreshCw } from "lucide-react";
 import { toast } from "sonner";
 
@@ -63,7 +64,7 @@ export default function StockMovementsPage() {
   }
 
   const columns = [
-    { key: "created_at", label: "Data", render: (r: StockMovement) => format(new Date(r.created_at), "dd/MM/yyyy HH:mm") },
+    { key: "created_at", label: "Data", render: (r: StockMovement) => formatDateTimeBR(r.created_at) },
     { key: "item", label: "Item", render: (r: StockMovement) => r.items ? `${r.items.codigo} - ${r.items.descricao}` : "—" },
     { key: "tipo", label: "Tipo", render: (r: StockMovement) => <Badge className={`text-2xs ${tipoColors[r.tipo] || ""}`}>{r.tipo}</Badge> },
     { key: "quantidade", label: "Qtd", render: (r: StockMovement) => Number(r.quantidade).toFixed(2) },

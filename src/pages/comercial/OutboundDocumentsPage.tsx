@@ -33,6 +33,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Plus, Trash2, CheckCircle, XCircle, Eye } from "lucide-react";
 import { ItemPickerDialog, PickedItem } from "@/components/ItemPickerDialog";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
@@ -484,7 +485,7 @@ export default function OutboundDocumentsPage() {
     {
       key: "data_emissao",
       label: "Emissão",
-      render: (r: OutboundDoc) => format(new Date(r.data_emissao), "dd/MM/yyyy"),
+      render: (r: OutboundDoc) => formatDateBR(r.data_emissao),
     },
     {
       key: "acoes",
@@ -734,7 +735,7 @@ export default function OutboundDocumentsPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Emissão:</span>{" "}
-                  {format(new Date(selectedDoc.data_emissao), "dd/MM/yyyy")}
+                  {formatDateBR(selectedDoc.data_emissao)}
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total:</span>{" "}

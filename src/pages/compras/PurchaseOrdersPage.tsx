@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { format } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Trash2, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 
@@ -357,9 +358,9 @@ export default function PurchaseOrdersPage() {
     { key: "numero", label: "Nº", render: (r: PurchaseOrder) => `PC-${r.numero_sequencial}` },
     { key: "fornecedor", label: "Fornecedor", render: (r: PurchaseOrder) => r.suppliers?.razao_social || "—" },
     { key: "status", label: "Status", render: (r: PurchaseOrder) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
-    { key: "data_entrega", label: "Entrega", render: (r: PurchaseOrder) => r.data_entrega ? format(new Date(r.data_entrega), "dd/MM/yyyy") : "—" },
+    { key: "data_entrega", label: "Entrega", render: (r: PurchaseOrder) => formatDateBR(r.data_entrega) },
     { key: "valor_frete", label: "Frete", render: (r: PurchaseOrder) => `R$ ${Number(r.valor_frete).toFixed(2)}` },
-    { key: "created_at", label: "Criado em", render: (r: PurchaseOrder) => format(new Date(r.created_at), "dd/MM/yyyy") },
+    { key: "created_at", label: "Criado em", render: (r: PurchaseOrder) => formatDateTimeBR(r.created_at, "dd/MM/yyyy") },
     {
       key: "acoes", label: "Ações", render: (r: PurchaseOrder) => {
         const canEdit = r.status === "ABERTO";
@@ -552,7 +553,7 @@ export default function PurchaseOrdersPage() {
             <div className="grid grid-cols-2 gap-3">
               <div><span className="text-muted-foreground">Fornecedor:</span> {viewDoc?.suppliers?.razao_social || "—"}</div>
               <div><span className="text-muted-foreground">Status:</span> <Badge className={`text-2xs ${statusColors[viewDoc?.status || ""]}`}>{viewDoc?.status}</Badge></div>
-              <div><span className="text-muted-foreground">Entrega:</span> {viewDoc?.data_entrega ? format(new Date(viewDoc.data_entrega), "dd/MM/yyyy") : "—"}</div>
+              <div><span className="text-muted-foreground">Entrega:</span> {formatDateBR(viewDoc?.data_entrega)}</div>
               <div><span className="text-muted-foreground">Frete:</span> R$ {Number(viewDoc?.valor_frete || 0).toFixed(2)}</div>
             </div>
             {viewItems.length > 0 && (

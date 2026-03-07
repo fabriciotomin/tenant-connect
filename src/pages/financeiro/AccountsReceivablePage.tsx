@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { FinancialFilters, applyFinancialFilters, emptyFilters, type FinancialFilterValues } from "@/components/FinancialFilters";
 import { toast } from "sonner";
 import { format, addDays } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 import { Plus, Download } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -187,8 +188,8 @@ export default function AccountsReceivablePage() {
     },
     { key: "cliente", label: "Cliente", render: (r: AR) => r.customers?.razao_social || "—" },
     { key: "documento", label: "Documento", render: (r: AR) => r.documento_origem || "—" },
-    { key: "data_lancamento", label: "Lançamento", render: (r: AR) => r.created_at ? format(new Date(r.created_at), "dd/MM/yyyy") : "—" },
-    { key: "data_vencimento", label: "Vencimento", render: (r: AR) => format(new Date(r.data_vencimento), "dd/MM/yyyy") },
+    { key: "data_lancamento", label: "Lançamento", render: (r: AR) => formatDateTimeBR(r.created_at, "dd/MM/yyyy") },
+    { key: "data_vencimento", label: "Vencimento", render: (r: AR) => formatDateBR(r.data_vencimento) },
     { key: "valor", label: "Valor", render: (r: AR) => `R$ ${Number(r.valor).toFixed(2)}` },
     { key: "status", label: "Status", render: (r: AR) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
     {
@@ -264,7 +265,7 @@ export default function AccountsReceivablePage() {
                 <p className="text-xs font-medium text-muted-foreground">Parcelas</p>
                 {parcelas.map(p => (
                   <div key={p.numero} className="flex justify-between text-xs">
-                    <span>P{p.numero} - {format(new Date(p.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+                    <span>P{p.numero} - {formatDateBR(p.data)}</span>
                     <span>R$ {p.valor.toFixed(2)}</span>
                   </div>
                 ))}
@@ -289,7 +290,7 @@ export default function AccountsReceivablePage() {
               <div className="bg-muted p-3 rounded text-xs space-y-1">
                 <p><span className="font-medium">Cliente:</span> {baixaTarget.customers?.razao_social}</p>
                 <p><span className="font-medium">Valor:</span> R$ {Number(baixaTarget.valor).toFixed(2)}</p>
-                <p><span className="font-medium">Vencimento:</span> {format(new Date(baixaTarget.data_vencimento), "dd/MM/yyyy")}</p>
+                <p><span className="font-medium">Vencimento:</span> {formatDateBR(baixaTarget.data_vencimento)}</p>
               </div>
               <div>
                 <Label className="text-xs">Banco</Label>

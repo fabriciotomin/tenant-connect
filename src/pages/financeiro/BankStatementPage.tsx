@@ -13,6 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Search, ArrowDownCircle, ArrowUpCircle, Plus } from "lucide-react";
 
 interface Bank {
@@ -234,7 +235,7 @@ export default function BankStatementPage() {
               <TableBody>
                 {rows.map(r => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.data + "T00:00:00"), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-xs">{formatDateBR(r.data)}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         {r.tipo === "ENTRADA" ? (

@@ -14,6 +14,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Plus, Trash2, FileOutput, Pencil, Copy, Eye, XCircle } from "lucide-react";
 import { useFinancialClassification } from "@/hooks/useFinancialClassification";
 import { usePaymentOptions } from "@/hooks/usePaymentOptions";
@@ -338,7 +339,7 @@ export default function QuotationsPage() {
     { key: "cliente", label: "Cliente", render: (r: Quotation) => r.customers?.razao_social || "Genérico" },
     { key: "status", label: "Status", render: (r: Quotation) => <Badge className={`text-2xs ${statusColors[r.status]}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor", render: (r: Quotation) => `R$ ${Number(r.valor_total).toFixed(2)}` },
-    { key: "validade", label: "Validade", render: (r: Quotation) => r.validade ? format(new Date(r.validade), "dd/MM/yyyy") : "—" },
+    { key: "validade", label: "Validade", render: (r: Quotation) => formatDateBR(r.validade) },
     {
       key: "acoes", label: "Ações", render: (r: Quotation) => {
         const isDraft = r.status === "RASCUNHO";
@@ -497,7 +498,7 @@ export default function QuotationsPage() {
             <div className="grid grid-cols-2 gap-3">
               <div><span className="text-muted-foreground">Cliente:</span> {viewDoc?.customers?.razao_social || "Genérico"}</div>
               <div><span className="text-muted-foreground">Status:</span> <Badge className={`text-2xs ${statusColors[viewDoc?.status || ""]}`}>{viewDoc?.status}</Badge></div>
-              <div><span className="text-muted-foreground">Validade:</span> {viewDoc?.validade ? format(new Date(viewDoc.validade), "dd/MM/yyyy") : "—"}</div>
+              <div><span className="text-muted-foreground">Validade:</span> {formatDateBR(viewDoc?.validade)}</div>
               <div><span className="text-muted-foreground">Valor Total:</span> R$ {Number(viewDoc?.valor_total || 0).toFixed(2)}</div>
             </div>
             {viewItems.length > 0 && (

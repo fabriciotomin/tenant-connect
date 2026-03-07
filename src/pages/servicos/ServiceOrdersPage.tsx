@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { toast } from "sonner";
 import { format, parseISO } from "date-fns";
+import { formatDateBR } from "@/lib/dateUtils";
 import { Plus, Trash2, CheckCircle, FileOutput, Copy, Eye, Pencil } from "lucide-react";
 
 const statusColors: Record<string, string> = {
@@ -224,9 +225,9 @@ export default function ServiceOrdersPage() {
     { key: "cliente", label: "Cliente", render: (r: ServiceOrder) => r.customers?.razao_social || "—" },
     { key: "status", label: "Status", render: (r: ServiceOrder) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor", render: (r: ServiceOrder) => `R$ ${Number(r.valor_total).toFixed(2)}` },
-    { key: "inicio", label: "Início", render: (r: ServiceOrder) => r.data_inicio_prevista ? format(parseISO(r.data_inicio_prevista), "dd/MM/yyyy") : "—" },
+    { key: "inicio", label: "Início", render: (r: ServiceOrder) => formatDateBR(r.data_inicio_prevista) },
     { key: "hora_inicio", label: "Hora Início", render: (r: ServiceOrder) => r.hora_inicio || "—" },
-    { key: "fim", label: "Fim", render: (r: ServiceOrder) => r.data_fim_prevista ? format(parseISO(r.data_fim_prevista), "dd/MM/yyyy") : "—" },
+    { key: "fim", label: "Fim", render: (r: ServiceOrder) => formatDateBR(r.data_fim_prevista) },
     { key: "hora_fim", label: "Hora Fim", render: (r: ServiceOrder) => r.hora_fim || "—" },
     {
       key: "acoes", label: "Ações", render: (r: ServiceOrder) => {
