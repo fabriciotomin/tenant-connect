@@ -661,7 +661,7 @@ export default function InboundDocumentsPage() {
     { key: "pedido_compra", label: "Pedido", render: (r: InboundDoc) => r.purchase_orders?.numero_sequencial ? `PC-${r.purchase_orders.numero_sequencial}` : "—" },
     { key: "status", label: "Status", render: (r: InboundDoc) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
     { key: "valor_total", label: "Valor Total", render: (r: InboundDoc) => `R$ ${Number(r.valor_total).toFixed(2)}` },
-    { key: "created_at", label: "Criado em", render: (r: InboundDoc) => format(new Date(r.created_at), "dd/MM/yyyy") },
+    { key: "created_at", label: "Criado em", render: (r: InboundDoc) => formatDateTimeBR(r.created_at, "dd/MM/yyyy") },
     {
       key: "acoes", label: "Ações", render: (r: InboundDoc) => {
         const isPending = r.status === "PENDENTE";
@@ -1117,7 +1117,7 @@ export default function InboundDocumentsPage() {
                             <tr key={p.id} className="border-t">
                               <td className="p-1.5">{p.descricao || "—"}</td>
                               <td className="text-right p-1.5">R$ {Number(p.valor).toFixed(2)}</td>
-                              <td className="text-right p-1.5">{format(new Date(p.data_vencimento), "dd/MM/yyyy")}</td>
+                              <td className="text-right p-1.5">{formatDateBR(p.data_vencimento)}</td>
                               <td className="p-1.5"><Badge className={`text-2xs ${p.status === "ABERTO" || p.status === "pendente" ? "bg-yellow-100 text-yellow-800" : p.status === "PAGO" || p.status === "pago" ? "bg-green-100 text-green-800" : "bg-red-100 text-red-800"}`}>{p.status}</Badge></td>
                             </tr>
                           ))}

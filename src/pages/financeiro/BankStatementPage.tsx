@@ -235,7 +235,7 @@ export default function BankStatementPage() {
               <TableBody>
                 {rows.map(r => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.data + "T00:00:00"), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-xs">{formatDateBR(r.data)}</TableCell>
                     <TableCell className="text-xs">
                       <div className="flex items-center gap-1">
                         {r.tipo === "ENTRADA" ? (

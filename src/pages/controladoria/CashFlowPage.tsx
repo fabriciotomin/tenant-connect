@@ -109,7 +109,7 @@ export default function CashFlowPage() {
               <TableBody>
                 {receivables.map((r: any) => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.data_vencimento), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-xs">{formatDateBR(r.data_vencimento)}</TableCell>
                     <TableCell className="text-xs">{r.documento_origem || "—"}</TableCell>
                     <TableCell className="text-xs">{fmt(Number(r.valor))}</TableCell>
                     <TableCell>{statusBadge(r.status)}</TableCell>
@@ -136,7 +136,7 @@ export default function CashFlowPage() {
               <TableBody>
                 {payables.map((r: any) => (
                   <TableRow key={r.id}>
-                    <TableCell className="text-xs">{format(new Date(r.data_vencimento), "dd/MM/yyyy")}</TableCell>
+                    <TableCell className="text-xs">{formatDateBR(r.data_vencimento)}</TableCell>
                     <TableCell className="text-xs">{r.descricao || "—"}</TableCell>
                     <TableCell className="text-xs">{fmt(Number(r.valor))}</TableCell>
                     <TableCell>{statusBadge(r.status)}</TableCell>

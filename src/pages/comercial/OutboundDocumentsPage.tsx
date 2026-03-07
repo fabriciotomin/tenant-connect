@@ -735,7 +735,7 @@ export default function OutboundDocumentsPage() {
                 </div>
                 <div>
                   <span className="text-muted-foreground">Emissão:</span>{" "}
-                  {format(new Date(selectedDoc.data_emissao), "dd/MM/yyyy")}
+                  {formatDateBR(selectedDoc.data_emissao)}
                 </div>
                 <div>
                   <span className="text-muted-foreground">Total:</span>{" "}

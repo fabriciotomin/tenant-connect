@@ -188,7 +188,7 @@ export default function AccountsPayablePage() {
     },
     { key: "fornecedor", label: "Fornecedor", render: (r: AP) => r.suppliers?.razao_social || "—" },
     { key: "descricao", label: "Descrição", render: (r: AP) => r.descricao || "—" },
-    { key: "data_vencimento", label: "Vencimento", render: (r: AP) => format(new Date(r.data_vencimento), "dd/MM/yyyy") },
+    { key: "data_vencimento", label: "Vencimento", render: (r: AP) => formatDateBR(r.data_vencimento) },
     { key: "valor", label: "Valor", render: (r: AP) => `R$ ${Number(r.valor).toFixed(2)}` },
     { key: "status", label: "Status", render: (r: AP) => <Badge className={`text-2xs ${statusColors[r.status] || ""}`}>{r.status}</Badge> },
     {
@@ -264,7 +264,7 @@ export default function AccountsPayablePage() {
                 <p className="text-xs font-medium text-muted-foreground">Parcelas</p>
                 {parcelas.map(p => (
                   <div key={p.numero} className="flex justify-between text-xs">
-                    <span>P{p.numero} - {format(new Date(p.data + "T12:00:00"), "dd/MM/yyyy")}</span>
+                    <span>P{p.numero} - {formatDateBR(p.data)}</span>
                     <span>R$ {p.valor.toFixed(2)}</span>
                   </div>
                 ))}
@@ -289,7 +289,7 @@ export default function AccountsPayablePage() {
               <div className="bg-muted p-3 rounded text-xs space-y-1">
                 <p><span className="font-medium">Fornecedor:</span> {baixaTarget.suppliers?.razao_social}</p>
                 <p><span className="font-medium">Valor:</span> R$ {Number(baixaTarget.valor).toFixed(2)}</p>
-                <p><span className="font-medium">Vencimento:</span> {format(new Date(baixaTarget.data_vencimento), "dd/MM/yyyy")}</p>
+                <p><span className="font-medium">Vencimento:</span> {formatDateBR(baixaTarget.data_vencimento)}</p>
               </div>
               <div>
                 <Label className="text-xs">Banco</Label>
