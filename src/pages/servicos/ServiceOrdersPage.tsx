@@ -61,7 +61,7 @@ export default function ServiceOrdersPage() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("service_orders")
-        .select("*, customers(razao_social)")
+        .select("*, customers(razao_social), hora_inicio, hora_fim, data_inicio, data_fim")
         .is("deleted_at", null)
         .order("created_at", { ascending: false });
       if (error) throw error;
