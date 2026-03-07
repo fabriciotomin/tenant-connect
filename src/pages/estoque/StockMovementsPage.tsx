@@ -138,19 +138,32 @@ export default function StockMovementsPage() {
     });
   }, [movements, filterDataInicio, filterDataFim, filterCodigoItem, filterDescricaoItem, filterGrupoItem, filterNatureza]);
 
-  // Compute running balance on filtered data (oldest first)
-  const sortedAsc = [...filteredMovements].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
-  let runningBalance = 0;
-  const balanceMap = new Map<string, number>();
-  for (const m of sortedAsc) {
-    const qty = Number(m.quantidade);
-    if (m.tipo === "ENTRADA" || m.tipo === "AJUSTE") {
-      runningBalance += qty;
-    } else {
-      runningBalance -= qty;
+  // Compute running balance PER ITEM (oldest first), then map each movement id to its balance
+  const balanceMap = useMemo(() => {
+    const map = new Map<string, number>();
+    // Group by item_id
+    const byItem = new Map<string, StockMovement[]>();
+    for (const m of filteredMovements) {
+      const key = m.item_id;
+      if (!byItem.has(key)) byItem.set(key, []);
+      byItem.get(key)!.push(m);
     }
-    balanceMap.set(m.id, runningBalance);
-  }
+    // For each item, sort chronologically and compute running balance
+    for (const [, items] of byItem) {
+      items.sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+      let balance = 0;
+      for (const m of items) {
+        const qty = Number(m.quantidade);
+        if (m.tipo === "ENTRADA" || m.tipo === "AJUSTE") {
+          balance += qty;
+        } else {
+          balance -= qty;
+        }
+        map.set(m.id, balance);
+      }
+    }
+    return map;
+  }, [filteredMovements]);
 
   const columns = [
     { key: "created_at", label: "Data", render: (r: StockMovement) => formatDateTimeBR(r.created_at) },
