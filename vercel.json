@@ -1,12 +1,8 @@
 {
-  "framework": null,
-  "buildCommand": "npm run build",
-  "outputDirectory": "dist",
-  "redirects": [
+  "rewrites": [
     {
       "source": "/(.*)",
-      "destination": "/",
-      "permanent": false
+      "destination": "/index.html"
     }
   ]
 }
