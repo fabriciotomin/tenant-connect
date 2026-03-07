@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { format, parseISO } from "date-fns";
+import { formatDateBR, formatDateTimeBR } from "@/lib/dateUtils";
 
 const statusColors: Record<string, string> = {
   RASCUNHO: "bg-yellow-100 text-yellow-800",
@@ -81,7 +82,7 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <span className="text-muted-foreground">Data Início:</span>
-                <p>{o.data_inicio ? format(parseISO(o.data_inicio), "dd/MM/yyyy") : "—"}</p>
+                <p>{formatDateBR(o.data_inicio)}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Hora Início:</span>
@@ -89,7 +90,7 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
               </div>
               <div>
                 <span className="text-muted-foreground">Data Fim:</span>
-                <p>{o.data_fim ? format(parseISO(o.data_fim), "dd/MM/yyyy") : "—"}</p>
+                <p>{formatDateBR(o.data_fim)}</p>
               </div>
               <div>
                 <span className="text-muted-foreground">Hora Fim:</span>
@@ -127,11 +128,11 @@ export function ServiceOrderDetailsDialog({ orderId, open, onOpenChange }: Props
           <div className="border-t pt-3 grid grid-cols-2 gap-3 text-muted-foreground">
             <div>
               <span>Criado em:</span>
-              <p>{format(new Date(o.created_at), "dd/MM/yyyy HH:mm")}</p>
+              <p>{formatDateTimeBR(o.created_at)}</p>
             </div>
             <div>
               <span>Atualizado em:</span>
-              <p>{format(new Date(o.updated_at), "dd/MM/yyyy HH:mm")}</p>
+              <p>{formatDateTimeBR(o.updated_at)}</p>
             </div>
           </div>
         </div>
