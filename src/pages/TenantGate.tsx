@@ -39,7 +39,7 @@ export default function TenantGate({ children }: { children: React.ReactNode }) 
             size="sm"
             onClick={async () => {
               await supabase.auth.signOut();
-              window.location.href = `/t/${slug}/auth`;
+              window.location.replace(`/t/${slug}/auth`);
             }}
           >
             Sair
