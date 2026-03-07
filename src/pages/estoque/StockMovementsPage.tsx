@@ -63,12 +63,38 @@ export default function StockMovementsPage() {
     return r.custo_unitario || 0;
   }
 
+  // Compute running balance (oldest first, then reverse for display)
+  const sortedAsc = [...movements].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+  let runningBalance = 0;
+  const balanceMap = new Map<string, number>();
+  for (const m of sortedAsc) {
+    const qty = Number(m.quantidade);
+    if (m.tipo === "ENTRADA" || m.tipo === "AJUSTE") {
+      runningBalance += qty;
+    } else {
+      runningBalance -= qty;
+    }
+    balanceMap.set(m.id, runningBalance);
+  }
+
   const columns = [
     { key: "created_at", label: "Data", render: (r: StockMovement) => formatDateTimeBR(r.created_at) },
     { key: "item", label: "Item", render: (r: StockMovement) => r.items ? `${r.items.codigo} - ${r.items.descricao}` : "—" },
     { key: "tipo", label: "Tipo", render: (r: StockMovement) => <Badge className={`text-2xs ${tipoColors[r.tipo] || ""}`}>{r.tipo}</Badge> },
-    { key: "quantidade", label: "Qtd", render: (r: StockMovement) => Number(r.quantidade).toFixed(2) },
+    { key: "quantidade", label: "Qtd", render: (r: StockMovement) => {
+      const qty = Number(r.quantidade);
+      const isEntrada = r.tipo === "ENTRADA" || r.tipo === "AJUSTE";
+      return (
+        <span className={isEntrada ? "text-green-600 font-medium" : "text-red-600 font-medium"}>
+          {isEntrada ? `+${qty.toFixed(2)}` : `-${qty.toFixed(2)}`}
+        </span>
+      );
+    }},
     { key: "unidade_medida", label: "U.M.", render: (r: StockMovement) => r.items?.unidade_medida || "UN" },
+    { key: "saldo", label: "Saldo", render: (r: StockMovement) => {
+      const saldo = balanceMap.get(r.id) ?? 0;
+      return <span className="font-semibold">{saldo.toFixed(2)}</span>;
+    }},
     { key: "custo_unitario", label: "Custo Unit.", render: (r: StockMovement) => `R$ ${getCustoUnitario(r).toFixed(2)}` },
     { key: "custo_total", label: "Custo Total", render: (r: StockMovement) => `R$ ${(getCustoUnitario(r) * Number(r.quantidade)).toFixed(2)}` },
     { key: "natureza", label: "Nat. Financeira", render: (r: StockMovement) => r.financial_natures ? `${r.financial_natures.codigo} - ${r.financial_natures.descricao}` : "—" },
