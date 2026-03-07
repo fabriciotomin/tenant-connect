@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   Table,
   TableBody,
@@ -9,12 +9,14 @@ import {
 } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Plus, Search, Loader2 } from "lucide-react";
+import { Plus, Search, Loader2, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
 
 interface Column<T> {
   key: string;
   label: string;
   render?: (row: T) => React.ReactNode;
+  sortable?: boolean;
+  sortValue?: (row: T) => string | number;
 }
 
 interface DataTableProps<T> {
@@ -41,10 +43,37 @@ export function DataTable<T extends { id: string }>({
   extraActions,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState("");
+  const [sortKey, setSortKey] = useState<string | null>(null);
+  const [sortAsc, setSortAsc] = useState(true);
 
   const filtered = search && filterFn
     ? data.filter((row) => filterFn(row, search.toLowerCase()))
     : data;
+
+  const sorted = useMemo(() => {
+    if (!sortKey) return filtered;
+    const col = columns.find(c => c.key === sortKey);
+    if (!col?.sortable) return filtered;
+
+    const getValue = col.sortValue || ((row: T) => (row as any)[col.key] ?? "");
+
+    return [...filtered].sort((a, b) => {
+      const va = getValue(a);
+      const vb = getValue(b);
+      if (va < vb) return sortAsc ? -1 : 1;
+      if (va > vb) return sortAsc ? 1 : -1;
+      return 0;
+    });
+  }, [filtered, sortKey, sortAsc, columns]);
+
+  const handleSort = (key: string) => {
+    if (sortKey === key) {
+      setSortAsc(!sortAsc);
+    } else {
+      setSortKey(key);
+      setSortAsc(true);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -74,8 +103,19 @@ export function DataTable<T extends { id: string }>({
           <TableHeader>
             <TableRow>
               {columns.map((col) => (
-                <TableHead key={col.key} className="px-2 py-1.5 text-xs font-medium">
-                  {col.label}
+                <TableHead
+                  key={col.key}
+                  className={`px-2 py-1.5 text-xs font-medium ${col.sortable ? "cursor-pointer select-none hover:bg-muted/50" : ""}`}
+                  onClick={col.sortable ? () => handleSort(col.key) : undefined}
+                >
+                  <div className="flex items-center gap-1">
+                    {col.label}
+                    {col.sortable && (
+                      sortKey === col.key
+                        ? (sortAsc ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />)
+                        : <ArrowUpDown className="h-3 w-3 text-muted-foreground/50" />
+                    )}
+                  </div>
                 </TableHead>
               ))}
             </TableRow>
@@ -87,14 +127,14 @@ export function DataTable<T extends { id: string }>({
                   <Loader2 className="h-4 w-4 animate-spin mx-auto text-muted-foreground" />
                 </TableCell>
               </TableRow>
-            ) : filtered.length === 0 ? (
+            ) : sorted.length === 0 ? (
               <TableRow>
                 <TableCell colSpan={columns.length} className="h-24 text-center text-xs text-muted-foreground">
                   Nenhum registro encontrado.
                 </TableCell>
               </TableRow>
             ) : (
-              filtered.map((row) => (
+              sorted.map((row) => (
                 <TableRow
                   key={row.id}
                   onClick={() => onRowClick?.(row)}
@@ -113,7 +153,7 @@ export function DataTable<T extends { id: string }>({
       </div>
 
       <div className="text-2xs text-muted-foreground">
-        {filtered.length} registro{filtered.length !== 1 ? "s" : ""}
+        {sorted.length} registro{sorted.length !== 1 ? "s" : ""}
       </div>
     </div>
   );
